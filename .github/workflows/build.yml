@@ -53,7 +53,12 @@ jobs:
         run: cp template_setup.xcconfig developer_setup.xcconfig
 
       - name: Run Blink tests
-        run: set -o pipefail && xcodebuild -project Blink.xcodeproj -scheme BlinkTests -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPad Air (5th generation)' test | xcpretty
+        run: |
+          set -euo pipefail
+          simulator_id="$(xcrun simctl list devices available | awk -F '[()]' '/iPad/ { print $2; exit }')"
+          test -n "$simulator_id"
+          set -o pipefail
+          xcodebuild -project Blink.xcodeproj -scheme BlinkTests -sdk iphonesimulator -destination "id=$simulator_id" test | xcpretty
 
       - name: Build unsigned device archive
         run: |
