@@ -30,7 +30,7 @@ jobs:
       - name: Install Hermes runtime into app resources
         run: |
           chmod +x install_hermes_runtime.sh
-          ./install_hermes_runtime.sh "$GITHUB_WORKSPACE/hermes-artifact/hermes"
+          ./install_hermes_runtime.sh "$GITHUB_WORKSPACE/hermes-artifact"
 
       - name: Cache framework builds
         id: cache
