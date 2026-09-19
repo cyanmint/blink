@@ -45,6 +45,7 @@ struct TerminalStyle: Codable, Identifiable, Equatable {
   var themeName: String
   var fontName: String
   var fontSize: CGFloat
+  var externalDisplayFontSize: CGFloat = 24
   var cursorBlink: Bool
   var boldMode: BoldMode
   var boldAsBright: Bool
