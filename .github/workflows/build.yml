@@ -1,56 +1,99 @@
 name: CI
 
-on: [push]
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
+  hermes-runtime:
+    uses: ./.github/workflows/build-hermes.yml
+    permissions:
+      contents: read
+
   build:
-
-    runs-on: macOS-latest
-    #runs-on: macos-13
-
+    needs: hermes-runtime
+    runs-on: macos-13
+    permissions:
+      contents: read
     steps:
-    # - uses: swift-actions/setup-swift@v1
-    - uses: actions/checkout@v2
-      with:
-        submodules: true
+      - name: Check out Blink
+        uses: actions/checkout@v4
+        with:
+          submodules: true
 
-    - name: switch xcode
-      run: sudo xcode-select -s '/Applications/Xcode_15.0.app/Contents/Developer'
+      - name: Download Hermes runtime
+        uses: actions/download-artifact@v4
+        with:
+          name: hermes-ios-runtime
+          path: hermes-artifact
 
-    - name: use cache
-      id: cache
-      uses: actions/cache@v2
-      with:
-        path: |
-          xcfs/.build
-          Frameworks/ios_system/xcfs/.build
-        key: ${{ runner.os }}-${{ hashFiles('get_frameworks.sh', 'xcfs/Package.swift') }}
+      - name: Install Hermes runtime into app resources
+        run: |
+          chmod +x install_hermes_runtime.sh
+          ./install_hermes_runtime.sh "$GITHUB_WORKSPACE/hermes-artifact/hermes"
 
-    - name: get frameworks
-      if: steps.cache.outputs.cache-hit != 'true'
-      run: ./get_frameworks.sh
+      - name: Switch Xcode
+        run: sudo xcode-select -s '/Applications/Xcode_15.0.app/Contents/Developer'
 
-    - name: get resources
-      if: steps.cache.outputs.cache-hit != 'true'
-      run: ./get_resources.sh
+      - name: Cache framework builds
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            xcfs/.build
+            Frameworks/ios_system/xcfs/.build
+          key: ${{ runner.os }}-${{ hashFiles('get_frameworks.sh', 'xcfs/Package.swift') }}
 
-    - name: copy xcconfig
-      run: cp template_setup.xcconfig developer_setup.xcconfig
+      - name: Get frameworks
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: ./get_frameworks.sh
 
-    - name: BlinkTests
-      run: xcodebuild -project Blink.xcodeproj -scheme BlinkTests -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPad Air (5th generation)' test | xcpretty
+      - name: Get resources
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: ./get_resources.sh
 
-    # - name: actual build
-    #   run: set -o pipefail && xcodebuild archive -project Blink.xcodeproj -scheme Blink -sdk iphoneos -configuration Debug clean build IPHONEOS_DEPLOYMENT_TARGET='16.1' CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=NO | tee build.log | xcpretty
+      - name: Prepare Xcode configuration
+        run: cp template_setup.xcconfig developer_setup.xcconfig
 
-    # - name: generate unsigned debug ipa
-    #   run: |
-    #     cd ~
-    #     mkdir Payload
-    #     mv ~/Library/Developer/Xcode/Archives/*/*/Products/Applications/Blink.app ~/Payload/
-    #     zip -r Blink.ipa Payload
-    # - name: upload ipa
-    #   uses: actions/upload-artifact@v2.2.0
-    #   with:
-    #     name: 'BlinkShell'
-    #     path: ~/Blink.ipa
+      - name: Run Blink tests
+        run: set -o pipefail && xcodebuild -project Blink.xcodeproj -scheme BlinkTests -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPad Air (5th generation)' test | xcpretty
+
+      - name: Build unsigned device archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Blink.xcodeproj \
+            -scheme Blink \
+            -sdk iphoneos \
+            -configuration Debug \
+            -archivePath "$RUNNER_TEMP/Blink.xcarchive" \
+            IPHONEOS_DEPLOYMENT_TARGET='16.1' \
+            CODE_SIGN_IDENTITY='' \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO | tee "$RUNNER_TEMP/blink-archive.log" | xcpretty
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/Blink.ipa"
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$RUNNER_TEMP/Blink.xcarchive/Products/Applications/Blink.app" "$RUNNER_TEMP/Payload/"
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/Blink.ipa"
+          unzip -l "$RUNNER_TEMP/Blink.ipa" | grep -E 'Payload/Blink.app/(hermes|hermesrt.zip)$'
+
+      - name: Upload Blink IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: blink-hermes-unsigned-ipa
+          path: ${{ runner.temp }}/Blink.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload archive log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blink-archive-log
+          path: ${{ runner.temp }}/blink-archive.log
+          if-no-files-found: ignore

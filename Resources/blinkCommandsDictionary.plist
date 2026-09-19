@@ -51,6 +51,13 @@
 		<string></string>
 		<string>no</string>
 	</array>
+	<key>hermes</key>
+	<array>
+		<string>MAIN</string>
+		<string>hermes_main</string>
+		<string></string>
+		<string>no</string>
+	</array>
 	<key>facecam</key>
 	<array>
 		<string>MAIN</string>

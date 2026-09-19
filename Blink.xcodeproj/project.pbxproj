@@ -466,6 +466,9 @@
 		D2ECBF4929645814004E95C4 /* BuildApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2ECBF4829645814004E95C4 /* BuildApi.swift */; };
 		D2ED4A6F239BB12E000DC67F /* KeyCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2ED4A6E239BB12E000DC67F /* KeyCaptureView.swift */; };
 		D2F30EAD205009CD008C5F35 /* base64js.min.js in Resources */ = {isa = PBXBuildFile; fileRef = D2F30EAC205009CD008C5F35 /* base64js.min.js */; };
+		F10000010000000000000001 /* hermes.m in Sources */ = {isa = PBXBuildFile; fileRef = F10000020000000000000001 /* hermes.m */; };
+		F10000030000000000000001 /* hermes in Resources */ = {isa = PBXBuildFile; fileRef = F10000040000000000000001 /* hermes */; };
+		F10000050000000000000001 /* hermesrt.zip in Resources */ = {isa = PBXBuildFile; fileRef = F10000060000000000000001 /* hermesrt.zip */; };
 		D2F330CA20A6CB840074ADD7 /* help.m in Sources */ = {isa = PBXBuildFile; fileRef = D2F330C920A6CB840074ADD7 /* help.m */; };
 		D2F330CC20A6D98C0074ADD7 /* config.m in Sources */ = {isa = PBXBuildFile; fileRef = D2F330CB20A6D98C0074ADD7 /* config.m */; };
 		D2F330D220A6EF030074ADD7 /* showkey.m in Sources */ = {isa = PBXBuildFile; fileRef = D2F330D120A6EF020074ADD7 /* showkey.m */; };
@@ -1218,6 +1221,9 @@
 		D2ECBF4829645814004E95C4 /* BuildApi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildApi.swift; sourceTree = "<group>"; };
 		D2ED4A6E239BB12E000DC67F /* KeyCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCaptureView.swift; sourceTree = "<group>"; };
 		D2F30EAC205009CD008C5F35 /* base64js.min.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = base64js.min.js; sourceTree = "<group>"; };
+		F10000020000000000000001 /* hermes.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = hermes.m; sourceTree = "<group>"; };
+		F10000040000000000000001 /* hermes */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = hermes; sourceTree = "<group>"; };
+		F10000060000000000000001 /* hermesrt.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = hermesrt.zip; sourceTree = "<group>"; };
 		D2F330C920A6CB840074ADD7 /* help.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = help.m; sourceTree = "<group>"; };
 		D2F330CB20A6D98C0074ADD7 /* config.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = config.m; sourceTree = "<group>"; };
 		D2F330D120A6EF020074ADD7 /* showkey.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = showkey.m; sourceTree = "<group>"; };
@@ -1533,6 +1539,8 @@
 				C94437641D838ABF0096F84E /* Fonts */,
 				C944375F1D831CD30096F84E /* Themes */,
 				0732F04A1D062B9A00AB5438 /* locales.bundle */,
+				F10000040000000000000001 /* hermes */,
+				F10000060000000000000001 /* hermesrt.zip */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -2383,6 +2391,7 @@
 				D2334D1221495DAE00D26AC3 /* udptunnel */,
 				D2F330D320A6F1DF0074ADD7 /* clear.m */,
 				D2F330CB20A6D98C0074ADD7 /* config.m */,
+				F10000020000000000000001 /* hermes.m */,
 				D264D2B528F84724002B1B14 /* whatsnew.m */,
 				D2F330C920A6CB840074ADD7 /* help.m */,
 				D263A7672AA9AFE7001C6CFC /* device_info.m */,
@@ -3229,6 +3238,8 @@
 				07E3AED11D9191B4007BC086 /* blink.png in Resources */,
 				D21A3FE721943BE200269705 /* dark-app-ipad-76pt@2x.png in Resources */,
 				BDE84C3C2BAE335100457391 /* vim in Resources */,
+				F10000030000000000000001 /* hermes in Resources */,
+				F10000050000000000000001 /* hermesrt.zip in Resources */,
 				C9B2E02F1D6B612400B89F69 /* Settings.storyboard in Resources */,
 				D2496F3F20038B3300E75FE9 /* hterm_all.min.js in Resources */,
 				D21A3FDB21943BE200269705 /* dark-settings-ipad-29pt@2x.png in Resources */,
@@ -3570,6 +3581,7 @@
 				D2C24418238E44AB0082C69C /* KBConfigView.swift in Sources */,
 				D2BF5F7F265BA0A80070F839 /* UserDefaults.swift in Sources */,
 				D2F330CA20A6CB840074ADD7 /* help.m in Sources */,
+				F10000010000000000000001 /* hermes.m in Sources */,
 				D28C357626A56DDF00202C4D /* FileProviderDomain.swift in Sources */,
 				D241CBD223040734003D64A5 /* KBDevice.swift in Sources */,
 				D23B4C6E2A6FCAC2002E689B /* SearchTextInput.swift in Sources */,

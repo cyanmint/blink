@@ -97,7 +97,7 @@ struct Complete {
     if let commands = commandsAsArray() as? [String] {
       result.append(contentsOf: commands)
     }
-    result.append(contentsOf: ["mosh", "exit", "ssh-copy-id"])
+    result.append(contentsOf: ["hermes", "mosh", "exit", "ssh-copy-id"])
     
     let set = Set<String>(result)
     result = Array(set)
@@ -140,6 +140,7 @@ struct Complete {
       "gzip": "Compression/decompression tool using Lempel-Ziv coding (LZ77)",  // fish
       "head": "Display first lines of a file", // fish
       "help": "Prints all commands. 🧐 ",
+      "hermes": "Run the bundled Hermes Agent runtime.",
       "history": "Use -c option to clear history. 🙈 ",
       "host": "DNS lookup utility.", // fish
       "less": "Pager.",

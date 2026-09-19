@@ -7,6 +7,16 @@ build/
 .build
 DerivedData/
 
+# Hermes build sources are checked in; only generated runtime artifacts are ignored.
+!hermes/
+!hermes/build/
+!hermes/build/*.sh
+!hermes/overlay/
+!hermes/overlay/**
+/hermes/hermes
+/hermes/hermesrt.zip
+/hermes/build/external/
+
 ## Various settings
 *.pbxuser
 !default.pbxuser

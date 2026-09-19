@@ -1,0 +1,70 @@
+name: Build Hermes iOS runtime
+
+on:
+  workflow_call:
+    inputs:
+      ios-sdk-version:
+        description: The Theos iPhoneOS SDK version to use
+        required: false
+        type: string
+        default: '16.5'
+    outputs:
+      artifact-name:
+        description: Artifact containing hermes and hermesrt.zip
+        value: hermes-ios-runtime
+
+jobs:
+  build-hermes:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out Blink
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld llvm make curl git pkg-config zlib1g-dev libssl-dev
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build native Hermes and hermesrt.zip
+        env:
+          IOS_SDK_VERSION: ${{ inputs.ios-sdk-version }}
+          BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
+          JOBS: 4
+        run: |
+          chmod +x hermes/build/*.sh
+          hermes/build/build-native-ios.sh
+
+      - name: Validate runtime artifacts
+        run: |
+          test -x hermes/hermes
+          test -s hermes/hermesrt.zip
+          file hermes/hermes
+          unzip -t hermes/hermesrt.zip
+          python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('hermes/hermesrt.zip') as archive:
+              names = set(archive.namelist())
+              required = {'python/encodings/__init__.py', 'hermes/hermes_cli/main.py'}
+              missing = required - names
+              if missing:
+                  raise SystemExit(f'missing runtime entries: {sorted(missing)}')
+              if any(name.endswith(('.so', '.dylib', '.pyd', '.wasm')) for name in names):
+                  raise SystemExit('runtime archive contains a forbidden dynamic artifact')
+          PY
+
+      - name: Upload Hermes runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-ios-runtime
+          path: |
+            hermes/hermes
+            hermes/hermesrt.zip
+          if-no-files-found: error
+          retention-days: 14
