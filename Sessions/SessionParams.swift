@@ -125,12 +125,26 @@ public extension EncodedStateBacked {
 @objc class MCPParams: NSObject, NSSecureCoding, BKSessionParamsSnapshotting {
   @objc var childSessionType: String? = nil
   @objc var childSessionParams: BKSessionParams?
+  @objc var viewSize: CGSize = .zero
+  @objc var rows: Int = 0
+  @objc var cols: Int = 0
+  @objc var themeName: String? = nil
+  @objc var fontName: String? = nil
+  @objc var fontSize: Int = 16
+  @objc var layoutMode: Int = 0
+  @objc var boldAsBright: Bool = false
+  @objc var enableBold: UInt = 0
+  @objc var layoutLocked: Bool = false
+  @objc var layoutLockedFrame: CGRect = .zero
 
   /// Command to run when the session bootstraps. Ephemeral — not encoded.
   /// Consumed once inside `MCPSession.executeWithArgs:`.
   @objc var initialCommand: String? = nil
 
-  private enum Key: CodingKey { case childSessionType, childSessionParams }
+  private enum Key: CodingKey {
+    case childSessionType, childSessionParams, viewSize, rows, cols, themeName, fontName, fontSize
+    case layoutMode, boldAsBright, enableBold, layoutLocked, layoutLockedFrame
+  }
 
   override init() { super.init() }
 
@@ -140,6 +154,17 @@ public extension EncodedStateBacked {
   func encode(with coder: NSCoder) {
     coder.bk_encode(childSessionType, for: Key.childSessionType)
     coder.bk_encode(childSessionParams, for: Key.childSessionParams)
+    coder.bk_encode(viewSize, for: Key.viewSize)
+    coder.bk_encode(rows, for: Key.rows)
+    coder.bk_encode(cols, for: Key.cols)
+    coder.bk_encode(themeName, for: Key.themeName)
+    coder.bk_encode(fontName, for: Key.fontName)
+    coder.bk_encode(fontSize, for: Key.fontSize)
+    coder.bk_encode(layoutMode, for: Key.layoutMode)
+    coder.bk_encode(boldAsBright, for: Key.boldAsBright)
+    coder.bk_encode(enableBold, for: Key.enableBold)
+    coder.bk_encode(layoutLocked, for: Key.layoutLocked)
+    coder.bk_encode(layoutLockedFrame, for: Key.layoutLockedFrame)
   }
 
   required init?(coder: NSCoder) {
@@ -147,6 +172,17 @@ public extension EncodedStateBacked {
     self.childSessionType = coder.bk_decode(for: Key.childSessionType)
     // NOTE: include all known MCP children subclasses here for secure decoding
     self.childSessionParams = coder.bk_decode(of: [MoshParams.self], for: Key.childSessionParams)
+    self.viewSize = coder.bk_decode(for: Key.viewSize)
+    self.rows = coder.bk_decode(for: Key.rows)
+    self.cols = coder.bk_decode(for: Key.cols)
+    self.themeName = coder.bk_decode(for: Key.themeName)
+    self.fontName = coder.bk_decode(for: Key.fontName)
+    self.fontSize = coder.bk_decode(for: Key.fontSize)
+    self.layoutMode = coder.bk_decode(for: Key.layoutMode)
+    self.boldAsBright = coder.bk_decode(for: Key.boldAsBright)
+    self.enableBold = coder.bk_decode(for: Key.enableBold)
+    self.layoutLocked = coder.bk_decode(for: Key.layoutLocked)
+    self.layoutLockedFrame = coder.bk_decode(for: Key.layoutLockedFrame)
   }
 
   // MARK: - BKSessionParamsSnapshotting (forward)
