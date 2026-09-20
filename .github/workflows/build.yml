@@ -79,9 +79,18 @@ jobs:
       - name: Package IPA
         run: |
           set -euo pipefail
+          app="$RUNNER_TEMP/Blink.xcarchive/Products/Applications/Blink.app"
+          test -x "$app/hermes"
+          # TrollStore can install an unsigned app, but iOS still requires
+          # every executable launched from the app bundle to have a valid
+          # code signature. Sign the bundled Hermes executable first, then
+          # ad-hoc sign the complete app bundle around it.
+          codesign --force --sign - --timestamp=none "$app/hermes"
+          codesign --force --deep --sign - --timestamp=none "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
           rm -rf "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/Blink.ipa"
           mkdir -p "$RUNNER_TEMP/Payload"
-          cp -R "$RUNNER_TEMP/Blink.xcarchive/Products/Applications/Blink.app" "$RUNNER_TEMP/Payload/"
+          cp -R "$app" "$RUNNER_TEMP/Payload/"
           /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/Blink.ipa"
           unzip -l "$RUNNER_TEMP/Blink.ipa" | grep -E 'Payload/Blink.app/(hermes|hermesrt.zip)$'
 
