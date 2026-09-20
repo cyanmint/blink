@@ -35,9 +35,12 @@ import Foundation
 
 @objc class Migrator : NSObject {
   @objc static func perform() {
+    // HermesLink has no provisioned legacy File Provider container when
+    // installed through TrollStore or an ad-hoc signer. Do not run the old
+    // migration: NSFileProviderManager.documentStorageURL throws an Objective-C
+    // exception when that container is unavailable.
     Self.perform(steps: [MigrationToAppGroup(),
                          MigrationAddSnippetsShortcut(),
-                         MigrationFileProviderReplicatedExtension(),
                          MigrationStyleFromDefaults(),
                          MigrationWipeSessionRegistry()
                         ])
