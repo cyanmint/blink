@@ -79,7 +79,8 @@ jobs:
       - name: Package IPA
         run: |
           set -euo pipefail
-          app="$RUNNER_TEMP/Blink.xcarchive/Products/Applications/Blink.app"
+          app="$(find "$RUNNER_TEMP/Blink.xcarchive/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app"
           test -x "$app/hermes"
           # TrollStore can install an unsigned app, but iOS still requires
           # every executable launched from the app bundle to have a valid
@@ -88,19 +89,19 @@ jobs:
           codesign --force --sign - --timestamp=none "$app/hermes"
           codesign --force --deep --sign - --timestamp=none "$app"
           codesign --verify --deep --strict --verbose=2 "$app"
-          rm -rf "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/Blink.ipa"
+          rm -rf "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/HermesLink.ipa"
           mkdir -p "$RUNNER_TEMP/Payload"
           cp -R "$app" "$RUNNER_TEMP/Payload/"
-          /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/Blink.ipa"
-          unzip -l "$RUNNER_TEMP/Blink.ipa" | grep -E 'Payload/Blink.app/(hermes|hermesrt.zip)$'
-          cp "$RUNNER_TEMP/Blink.ipa" "$RUNNER_TEMP/Blink.tipa"
-          unzip -tq "$RUNNER_TEMP/Blink.tipa"
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/HermesLink.ipa"
+          unzip -l "$RUNNER_TEMP/HermesLink.ipa" | grep -E 'Payload/[^/]+\.app/(hermes|hermesrt.zip)$'
+          cp "$RUNNER_TEMP/HermesLink.ipa" "$RUNNER_TEMP/HermesLink.tipa"
+          unzip -tq "$RUNNER_TEMP/HermesLink.tipa"
 
       - name: Upload Impactor IPA
         uses: actions/upload-artifact@v4
         with:
           name: blink-hermes-impactor-ipa
-          path: ${{ runner.temp }}/Blink.ipa
+          path: ${{ runner.temp }}/HermesLink.ipa
           if-no-files-found: error
           retention-days: 14
 
@@ -108,7 +109,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: blink-hermes-trollstore-tipa
-          path: ${{ runner.temp }}/Blink.tipa
+          path: ${{ runner.temp }}/HermesLink.tipa
           if-no-files-found: error
           retention-days: 14
 

@@ -1234,7 +1234,7 @@
 		D2F64C9525CA99AD00F2225D /* libssh2.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libssh2.xcframework; path = xcfs/.build/artifacts/xcfs/libssh2/libssh2.xcframework; sourceTree = SOURCE_ROOT; };
 		D2FBEC0727CF505D00FD974A /* browse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = browse.swift; sourceTree = "<group>"; };
 		D2FCB4DC2339F9DB00A88108 /* UIScrollView+Paging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIScrollView+Paging.swift"; sourceTree = "<group>"; };
-		EA0BA18B1C0CC57B00719C1A /* Blink.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Blink.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EA0BA18B1C0CC57B00719C1A /* HermesLink.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HermesLink.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -2458,7 +2458,7 @@
 		EA0BA18C1C0CC57B00719C1A /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EA0BA18B1C0CC57B00719C1A /* Blink.app */,
+				EA0BA18B1C0CC57B00719C1A /* HermesLink.app */,
 				D265FBBA2317DD3C0017EAC4 /* BlinkTests.xctest */,
 				07FABB8425C9AEC000E1CC2C /* SSH.framework */,
 				07FABB8C25C9AEC100E1CC2C /* SSHTests.xctest */,
@@ -2892,7 +2892,7 @@
 				BDFA97312D7F49EF0020BBF2 /* ConfettiSwiftUI */,
 			);
 			productName = Blink;
-			productReference = EA0BA18B1C0CC57B00719C1A /* Blink.app */;
+			productReference = EA0BA18B1C0CC57B00719C1A /* HermesLink.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -4160,7 +4160,7 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Blink.app/Blink";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HermesLink.app/HermesLink";
 			};
 			name = Debug;
 		};
@@ -4192,7 +4192,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Blink.app/Blink";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HermesLink.app/HermesLink";
 			};
 			name = Release;
 		};
@@ -4433,7 +4433,7 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Blink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Blink";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HermesLink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HermesLink";
 			};
 			name = Debug;
 		};
@@ -4467,7 +4467,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Blink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Blink";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HermesLink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HermesLink";
 			};
 			name = Release;
 		};
@@ -5092,7 +5092,7 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Blink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Blink";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HermesLink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HermesLink";
 			};
 			name = Debug;
 		};
@@ -5123,7 +5123,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Blink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Blink";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HermesLink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HermesLink";
 			};
 			name = Release;
 		};
@@ -5163,7 +5163,7 @@
 				SWIFT_OBJC_BRIDGING_HEADER = "Blink/Blink-bridge.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Blink.app/Blink";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HermesLink.app/HermesLink";
 			};
 			name = Debug;
 		};
@@ -5196,7 +5196,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Blink/Blink-bridge.h";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Blink.app/Blink";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HermesLink.app/HermesLink";
 			};
 			name = Release;
 		};
@@ -5330,7 +5330,7 @@
 					"$(inherited)",
 				);
 				INFOPLIST_FILE = Blink/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Blink Shell";
+				INFOPLIST_KEY_CFBundleDisplayName = HermesLink;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -5349,7 +5349,7 @@
 					"$(BLINK_OTHER_LDFLAGS)",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_ID)";
-				PRODUCT_NAME = Blink;
+				PRODUCT_NAME = HermesLink;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				RUN_CLANG_STATIC_ANALYZER = YES;
 				STRIP_STYLE = "non-global";
@@ -5378,7 +5378,7 @@
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = "";
 				INFOPLIST_FILE = Blink/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Blink Shell";
+				INFOPLIST_KEY_CFBundleDisplayName = HermesLink;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -5397,7 +5397,7 @@
 					"$(BLINK_OTHER_LDFLAGS)",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE_ID)";
-				PRODUCT_NAME = Blink;
+				PRODUCT_NAME = HermesLink;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRIP_STYLE = "non-global";
 				STRIP_SWIFT_SYMBOLS = NO;

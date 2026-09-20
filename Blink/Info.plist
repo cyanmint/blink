@@ -12,7 +12,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Blink</string>
+	<string>HermesLink</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIcons</key>
@@ -130,12 +130,12 @@
 	<string>storing commands</string>
 	<key>NSUbiquitousContainers</key>
 	<dict>
-		<key>iCloud.sh.blink.blinkshell</key>
+		<key>iCloud.com.hermeslink.app</key>
 		<dict>
 			<key>NSUbiquitousContainerIsDocumentScopePublic</key>
 			<true/>
 			<key>NSUbiquitousContainerName</key>
-			<string>Blink</string>
+			<string>HermesLink</string>
 			<key>NSUbiquitousContainerSupportedFolderLevels</key>
 			<string>Any</string>
 		</dict>
