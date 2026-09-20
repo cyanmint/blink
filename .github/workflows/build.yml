@@ -90,10 +90,14 @@ jobs:
           codesign --force --deep --sign - --timestamp=none "$app"
           codesign --verify --deep --strict --verbose=2 "$app"
           rm -rf "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/HermesLink.ipa"
-          mkdir -p "$RUNNER_TEMP/Payload"
-          cp -R "$app" "$RUNNER_TEMP/Payload/"
-          /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/HermesLink.ipa"
-          unzip -l "$RUNNER_TEMP/HermesLink.ipa" | grep -E 'Payload/[^/]+\.app/(hermes|hermesrt.zip)$'
+          mkdir -p "$RUNNER_TEMP/Payload/HermesLink.app"
+          /usr/bin/ditto "$app" "$RUNNER_TEMP/Payload/HermesLink.app"
+          test "$(find "$RUNNER_TEMP/Payload" -mindepth 1 -maxdepth 1 -type d -name '*.app' | wc -l | tr -d ' ')" = 1
+          test -f "$RUNNER_TEMP/Payload/HermesLink.app/Info.plist"
+          test -x "$RUNNER_TEMP/Payload/HermesLink.app/HermesLink"
+          (cd "$RUNNER_TEMP" && /usr/bin/zip -qry -X HermesLink.ipa Payload)
+          unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -Fx 'Payload/HermesLink.app/Info.plist'
+          unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -E '^Payload/HermesLink\.app/(HermesLink|hermes|hermesrt\.zip)$'
           # TrollStore .tipa is a ZIP containing the .app at its root,
           # not an IPA Payload directory renamed to .tipa.
           /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$app" "$RUNNER_TEMP/HermesLink.tipa"
