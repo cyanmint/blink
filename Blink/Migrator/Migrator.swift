@@ -35,10 +35,15 @@ import Foundation
 
 @objc class Migrator : NSObject {
   @objc static func perform() {
-    // HermesLink has no provisioned legacy File Provider container when
-    // installed through TrollStore or an ad-hoc signer. Do not run the old
-    // migration: NSFileProviderManager.documentStorageURL throws an Objective-C
-    // exception when that container is unavailable.
+    // HermesLink has a new bundle identifier and therefore no legacy Blink
+    // data to migrate. More importantly, TrollStore/ad-hoc installs do not
+    // have the provisioned containers expected by these old migrations.
+    // Running them during launch can throw Objective-C exceptions before the
+    // first scene is created, so HermesLink must start without legacy work.
+    guard Bundle.main.bundleIdentifier != "com.hermeslink.app" else {
+      return
+    }
+
     Self.perform(steps: [MigrationToAppGroup(),
                          MigrationAddSnippetsShortcut(),
                          MigrationStyleFromDefaults(),

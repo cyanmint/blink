@@ -37,7 +37,9 @@ class MigrationStyleFromDefaults: MigrationStep {
   func execute() throws {
     BLKDefaults.loadDefaults()
 
-    let legacy = BLKDefaults.legacyInstance()!
+    guard let legacy = BLKDefaults.legacyInstance() else {
+      return
+    }
     let store = TerminalStyleStore.shared
     let builtIn = TerminalStyle.makeBuiltInDefault()
 

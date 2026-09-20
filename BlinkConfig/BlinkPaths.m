@@ -113,6 +113,11 @@ NSString *__iCloudsDriveDocumentsPath = nil;
 
 + (void)_linkAtPath:(NSString *)path destinationPath:(NSString *)destinationPath {
   NSFileManager *fm = [NSFileManager defaultManager];
+
+  if (path.length == 0 || destinationPath.length == 0) {
+    NSLog(@"Skipping link with unavailable path (source=%@, destination=%@)", path, destinationPath);
+    return;
+  }
   
   // Don't use fileExists as that would traverse the symlink.
   if ([fm attributesOfItemAtPath:path error:nil]) {
