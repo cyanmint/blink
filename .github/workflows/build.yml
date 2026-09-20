@@ -93,12 +93,22 @@ jobs:
           cp -R "$app" "$RUNNER_TEMP/Payload/"
           /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/Blink.ipa"
           unzip -l "$RUNNER_TEMP/Blink.ipa" | grep -E 'Payload/Blink.app/(hermes|hermesrt.zip)$'
+          cp "$RUNNER_TEMP/Blink.ipa" "$RUNNER_TEMP/Blink.tipa"
+          unzip -tq "$RUNNER_TEMP/Blink.tipa"
 
-      - name: Upload Blink IPA
+      - name: Upload Impactor IPA
         uses: actions/upload-artifact@v4
         with:
-          name: blink-hermes-unsigned-ipa
+          name: blink-hermes-impactor-ipa
           path: ${{ runner.temp }}/Blink.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload TrollStore TIPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: blink-hermes-trollstore-tipa
+          path: ${{ runner.temp }}/Blink.tipa
           if-no-files-found: error
           retention-days: 14
 
