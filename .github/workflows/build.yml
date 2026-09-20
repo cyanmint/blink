@@ -98,26 +98,12 @@ jobs:
           (cd "$RUNNER_TEMP" && /usr/bin/zip -qry -X HermesLink.ipa Payload)
           unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -Fx 'Payload/HermesLink.app/Info.plist'
           unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -E '^Payload/HermesLink\.app/(HermesLink|hermes|hermesrt\.zip)$'
-          # TrollStore .tipa uses the same Payload archive layout as an IPA;
-          # only the filename extension distinguishes the delivery artifact.
-          cp "$RUNNER_TEMP/HermesLink.ipa" "$RUNNER_TEMP/HermesLink.tipa"
-          unzip -Z1 "$RUNNER_TEMP/HermesLink.tipa" | grep -Fx 'Payload/HermesLink.app/Info.plist'
-          unzip -Z1 "$RUNNER_TEMP/HermesLink.tipa" | grep -E '^Payload/HermesLink\.app/(HermesLink|hermes|hermesrt\.zip)$'
-          unzip -tq "$RUNNER_TEMP/HermesLink.tipa"
 
-      - name: Upload Impactor IPA
+      - name: Upload universal HermesLink IPA
         uses: actions/upload-artifact@v4
         with:
-          name: blink-hermes-impactor-ipa
+          name: hermeslink-ipa
           path: ${{ runner.temp }}/HermesLink.ipa
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload TrollStore TIPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: blink-hermes-trollstore-tipa
-          path: ${{ runner.temp }}/HermesLink.tipa
           if-no-files-found: error
           retention-days: 14
 
