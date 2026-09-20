@@ -71,6 +71,17 @@ NSString *__iCloudsDriveDocumentsPath = nil;
 
     NSFileManager *fm = [NSFileManager defaultManager];
     NSString *path = [fm containerURLForSecurityApplicationGroupIdentifier:groupID].path;
+    if (path.length == 0) {
+      // TrollStore/ad-hoc installs may not receive a provisioned App Group.
+      // Never pass nil to URL(fileURLWithPath:): Migrator runs before the
+      // first scene and would trap during launch. Use an app-local durable
+      // directory until a real App Group becomes available.
+      NSString *applicationSupport = [NSSearchPathForDirectoriesInDomains(
+        NSApplicationSupportDirectory, NSUserDomainMask, YES) firstObject];
+      path = [applicationSupport stringByAppendingPathComponent:@"HermesLink"];
+      [self _ensureFolderAtPath:path];
+      NSLog(@"App Group %@ unavailable; using app-local container %@", groupID, path);
+    }
     __groupContainerPath = path;
   }
   return __groupContainerPath;

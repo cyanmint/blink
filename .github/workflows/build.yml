@@ -98,10 +98,11 @@ jobs:
           (cd "$RUNNER_TEMP" && /usr/bin/zip -qry -X HermesLink.ipa Payload)
           unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -Fx 'Payload/HermesLink.app/Info.plist'
           unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -E '^Payload/HermesLink\.app/(HermesLink|hermes|hermesrt\.zip)$'
-          # TrollStore .tipa is a ZIP containing the .app at its root,
-          # not an IPA Payload directory renamed to .tipa.
-          /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$app" "$RUNNER_TEMP/HermesLink.tipa"
-          unzip -l "$RUNNER_TEMP/HermesLink.tipa" | grep -E 'HermesLink\.app/(HermesLink|hermes|hermesrt\.zip)$'
+          # TrollStore .tipa uses the same Payload archive layout as an IPA;
+          # only the filename extension distinguishes the delivery artifact.
+          cp "$RUNNER_TEMP/HermesLink.ipa" "$RUNNER_TEMP/HermesLink.tipa"
+          unzip -Z1 "$RUNNER_TEMP/HermesLink.tipa" | grep -Fx 'Payload/HermesLink.app/Info.plist'
+          unzip -Z1 "$RUNNER_TEMP/HermesLink.tipa" | grep -E '^Payload/HermesLink\.app/(HermesLink|hermes|hermesrt\.zip)$'
           unzip -tq "$RUNNER_TEMP/HermesLink.tipa"
 
       - name: Upload Impactor IPA
