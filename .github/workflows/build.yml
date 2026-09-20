@@ -94,7 +94,10 @@ jobs:
           cp -R "$app" "$RUNNER_TEMP/Payload/"
           /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/HermesLink.ipa"
           unzip -l "$RUNNER_TEMP/HermesLink.ipa" | grep -E 'Payload/[^/]+\.app/(hermes|hermesrt.zip)$'
-          cp "$RUNNER_TEMP/HermesLink.ipa" "$RUNNER_TEMP/HermesLink.tipa"
+          # TrollStore .tipa is a ZIP containing the .app at its root,
+          # not an IPA Payload directory renamed to .tipa.
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$app" "$RUNNER_TEMP/HermesLink.tipa"
+          unzip -l "$RUNNER_TEMP/HermesLink.tipa" | grep -E 'HermesLink\.app/(HermesLink|hermes|hermesrt\.zip)$'
           unzip -tq "$RUNNER_TEMP/HermesLink.tipa"
 
       - name: Upload Impactor IPA

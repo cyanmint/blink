@@ -36,7 +36,7 @@ import SwiftUI
 
 import RevenueCat
 
-let Blink15BundleID = "sh.blink.blinkshell"
+let Blink15BundleID = "com.hermeslink.app"
 
 class ExternalWindow: UIWindow {
   var shadowWindow: UIWindow? = nil
