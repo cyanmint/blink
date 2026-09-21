@@ -85,9 +85,15 @@ if [ ! -f "$OPENSSL_INSTALL/lib/libssl.a" ] || [ ! -f "$OPENSSL_INSTALL/lib/libc
 fi
 
 TARGET_ROOT=$BUILD_ROOT/target-cpython
-rm -rf "$TARGET_ROOT"
-mkdir -p "$TARGET_ROOT"
-git -C "$CPYTHON_ROOT" archive HEAD | tar -x -C "$TARGET_ROOT"
+TARGET_STAMP="$TARGET_ROOT/.hermes-cpython-ref"
+if [ ! -f "$TARGET_STAMP" ] || [ "$(cat "$TARGET_STAMP")" != "$CPYTHON_REF" ]; then
+  rm -rf "$TARGET_ROOT"
+  mkdir -p "$TARGET_ROOT"
+  git -C "$CPYTHON_ROOT" archive HEAD | tar -x -C "$TARGET_ROOT"
+  printf '%s\n' "$CPYTHON_REF" > "$TARGET_STAMP"
+else
+  echo "Reusing cached CPython target objects for $CPYTHON_REF"
+fi
 cat > "$TARGET_ROOT/ios_compat.c" <<'EOF'
 #include <stdint.h>
 int __isPlatformVersionAtLeast(uint32_t platform, uint32_t major, uint32_t minor, uint32_t subminor) {

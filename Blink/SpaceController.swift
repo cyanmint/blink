@@ -36,6 +36,7 @@
 
 import MBProgressHUD
 import SwiftUI
+import Network
 
 
 // MARK: UIViewController
@@ -774,13 +775,118 @@ extension SpaceController {
     currentTerm()?.scaleWithPich(pinch)
   }
   
-  private func _newShellAction(command: String = "", animated: Bool = true) {
+  func _newShellAction(command: String = "", animated: Bool = true) {
     let params = MCPParams()
     if !command.isEmpty {
       params.initialCommand = command
     }
     let payload = MCPSessionPayload(params: params)
     _createTerminal(userActivity: nil, animated: animated, sessionPayload: payload)
+  }
+
+  private static let hermesWebUIDefaultPort = 8787
+  private static var hermesWebUIPort: Int?
+  private static var hermesWebUIStartInFlight = false
+  private static var hermesWebUIWaiters: [(Int, Bool) -> Void] = []
+
+  private static func portIsOccupied(_ port: Int, completion: @escaping (Bool) -> Void) {
+    guard let endpointPort = NWEndpoint.Port(rawValue: UInt16(port)) else {
+      completion(true)
+      return
+    }
+
+    let connection = NWConnection(host: "127.0.0.1", port: endpointPort, using: .tcp)
+    let lock = NSLock()
+    var finished = false
+    let finish: (Bool) -> Void = { occupied in
+      lock.lock()
+      guard !finished else {
+        lock.unlock()
+        return
+      }
+      finished = true
+      lock.unlock()
+      connection.cancel()
+      completion(occupied)
+    }
+
+    connection.stateUpdateHandler = { state in
+      switch state {
+      case .ready:
+        finish(true)
+      case .failed, .cancelled:
+        finish(false)
+      default:
+        break
+      }
+    }
+    connection.start(queue: DispatchQueue.global(qos: .utility))
+    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.5) {
+      finish(false)
+    }
+  }
+
+  private static func findHermesWebUIPort(_ port: Int, completion: @escaping (Int, Bool) -> Void) {
+    // A successful WebUI API response means another HermesLink window (or a
+    // previously launched app instance) already owns this port.
+    let url = URL(string: "http://127.0.0.1:\(port)/api/config")!
+    URLSession.shared.dataTask(with: url) { _, response, _ in
+      if let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
+        completion(port, false)
+        return
+      }
+
+      portIsOccupied(port) { occupied in
+        if occupied {
+          findHermesWebUIPort(port + 1, completion: completion)
+        } else {
+          completion(port, true)
+        }
+      }
+    }.resume()
+  }
+
+  private func openHermesWebUI(at port: Int, launchServer: Bool) {
+    let url = "http://127.0.0.1:\(port)"
+    if launchServer {
+      _newShellAction(
+        command: "hermes webui --host 127.0.0.1 --port \(port) >/dev/null 2>&1 &",
+        animated: false
+      )
+      // Give the embedded Python runtime time to bind before WebKit loads it.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        self?._newShellAction(command: "browse \(url)", animated: true)
+      }
+    } else {
+      _newShellAction(command: "browse \(url)", animated: true)
+    }
+  }
+
+  @objc func startHermesWebUI() {
+    Self.hermesWebUIWaiters.append { [weak self] port, launchServer in
+      guard let self else { return }
+      self.openHermesWebUI(at: port, launchServer: launchServer)
+    }
+    guard !Self.hermesWebUIStartInFlight else { return }
+    Self.hermesWebUIStartInFlight = true
+
+    if let port = Self.hermesWebUIPort {
+      Self.hermesWebUIStartInFlight = false
+      let waiters = Self.hermesWebUIWaiters
+      Self.hermesWebUIWaiters.removeAll()
+      waiters.forEach { $0(port, false) }
+      return
+    }
+
+    Self.findHermesWebUIPort(Self.hermesWebUIDefaultPort) { port, shouldLaunch in
+      DispatchQueue.main.async {
+        Self.hermesWebUIPort = port
+        Self.hermesWebUIStartInFlight = false
+        let waiters = Self.hermesWebUIWaiters
+        Self.hermesWebUIWaiters.removeAll()
+        waiters.forEach { $0(port, shouldLaunch) }
+      }
+    }
   }
 
   @objc func newShellAction() {

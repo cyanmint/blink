@@ -8,7 +8,7 @@ jobs:
   hermes-runtime:
     uses: ./.github/workflows/build-hermes.yml
     permissions:
-      contents: read
+      contents: write
 
   build:
     needs: hermes-runtime

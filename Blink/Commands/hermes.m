@@ -10,6 +10,15 @@
 
 __attribute__((visibility("default")))
 int hermes_main(int argc, char *argv[]) {
+  // --version is a local metadata query. Do not start the embedded Python
+  // interpreter for it: ios_execv can otherwise leave the terminal waiting
+  // for the child runtime even though no Python work is required.
+  if (argc == 2 && strcmp(argv[1], "--version") == 0) {
+    fprintf(thread_stdout, "Hermes Agent v0.21.2\n");
+    fflush(thread_stdout);
+    return 0;
+  }
+
   NSBundle *bundle = [NSBundle mainBundle];
   NSString *executable = [bundle pathForResource:@"hermes" ofType:nil];
   NSString *runtime = [bundle pathForResource:@"hermesrt" ofType:@"zip"];

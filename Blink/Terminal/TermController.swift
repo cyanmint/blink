@@ -270,7 +270,16 @@ class TermController: UIViewController {
 
   public override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    _termView.termUIState.viewSize = view.bounds.size
+    let newSize = view.bounds.size
+    let didChangeSize = _termView.termUIState.viewSize != newSize
+    _termView.termUIState.viewSize = newSize
+
+    // Session startup can precede the proxy view's final bounds. hterm then
+    // reports a temporary size (often two rows) and keeps using it until the
+    // next resize. Re-send SIGWINCH after every real bounds change.
+    if didChangeSize {
+      _session?.sigwinch()
+    }
   }
 
   @objc public func terminate() {

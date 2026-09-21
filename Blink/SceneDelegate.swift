@@ -239,6 +239,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     window.rootViewController = _spCtrl
     window.isHidden = false
 
+    if session.role == .windowApplication {
+      DispatchQueue.main.async { [weak self] in
+        self?._spCtrl.startHermesWebUI()
+      }
+    }
+
     // Await until scene and streams are ready
     // NOTE We could also store the contexts and use them later.
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {

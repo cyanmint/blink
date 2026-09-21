@@ -73,6 +73,7 @@ struct winsize __winSizeFromJSON(NSDictionary *json) {
   NSMutableArray *_touchesArray;
   
   id<UIInteraction> _editMenuIteraction;
+  UIButton *_browserToggleButton;
 }
 
 
@@ -263,8 +264,42 @@ struct winsize __winSizeFromJSON(NSDictionary *json) {
     [_browserView.bottomAnchor constraintEqualToAnchor:_webView.bottomAnchor]
   ]];
 
+  if (!_browserToggleButton) {
+    _browserToggleButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    _browserToggleButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _browserToggleButton.backgroundColor = [[UIColor systemBackgroundColor] colorWithAlphaComponent:0.9];
+    _browserToggleButton.layer.cornerRadius = 8.0;
+    [_browserToggleButton setTitle:@"Shell" forState:UIControlStateNormal];
+    [_browserToggleButton addTarget:self action:@selector(_toggleBrowser) forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:_browserToggleButton];
+    [NSLayoutConstraint activateConstraints:@[
+      [_browserToggleButton.topAnchor constraintEqualToAnchor:self.topAnchor constant:8.0],
+      [_browserToggleButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-8.0],
+      [_browserToggleButton.widthAnchor constraintEqualToConstant:72.0],
+      [_browserToggleButton.heightAnchor constraintEqualToConstant:36.0]
+    ]];
+  }
+
   NSURLRequest *request = [NSURLRequest requestWithURL:url];
   [_browserView loadRequest:request];
+}
+
+- (void)_toggleBrowser
+{
+  BOOL showShell = !_browserView.hidden;
+  _browserView.hidden = showShell;
+  [_browserToggleButton setTitle:(showShell ? @"Web" : @"Shell") forState:UIControlStateNormal];
+
+  if (showShell) {
+    [_browserView resignFirstResponder];
+    [_device attachInput:_webView];
+    [_device focus];
+    [_webView becomeFirstResponder];
+  } else {
+    [_device attachInput:_browserView];
+    [_browserView becomeFirstResponder];
+  }
+  [self bringSubviewToFront:_browserToggleButton];
 }
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
