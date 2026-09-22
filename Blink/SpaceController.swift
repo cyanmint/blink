@@ -857,18 +857,18 @@ extension SpaceController {
 
   private func openHermesWebUI(at port: Int, launchServer: Bool) {
     HermesLinkAppendLog("opening Hermes WebUI")
+    let webUITerm = currentTerm()
     if launchServer {
       // Keep the server in the terminal that owns it. Do not background or
       // silence it: this is the diagnostic shell for the WebUI.
-      let webUITerm = currentTerm()
       webUITerm?.enqueueCommand("hermes webui --host 127.0.0.1 --port \(port)")
-      if UserDefaults.standard.object(forKey: "HermesLinkOpenWebUIInForeground") == nil ||
-         UserDefaults.standard.bool(forKey: "HermesLinkOpenWebUIInForeground") {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-          guard let webUITerm,
-                let webURL = URL(string: "http://127.0.0.1:8787") else { return }
-          webUITerm.termView.showBrowserWebView(webURL)
-        }
+    }
+    if UserDefaults.standard.object(forKey: "HermesLinkOpenWebUIInForeground") == nil ||
+       UserDefaults.standard.bool(forKey: "HermesLinkOpenWebUIInForeground") {
+      DispatchQueue.main.asyncAfter(deadline: .now() + (launchServer ? 2.0 : 0.0)) {
+        guard let webUITerm,
+              let webURL = URL(string: "http://127.0.0.1:8787") else { return }
+        webUITerm.termView.showBrowserWebView(webURL)
       }
     }
   }
