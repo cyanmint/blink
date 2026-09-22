@@ -193,6 +193,10 @@ class TermController: UIViewController {
 
   @objc var termView: TermView { _termView }
 
+  @objc func enqueueCommand(_ command: String) {
+    (_session as? MCPSession)?.enqueueCommand(command, skipHistoryRecord: true)
+  }
+
   private var _sessionPayload: TermSessionPayload? = nil
   private var _session: Session? { _sessionPayload?.session }
 
