@@ -42,9 +42,10 @@ if [ ! -x "$HOST_PYTHON" ]; then
   HOST_ROOT=$BUILD_ROOT/host-cpython
   if [ ! -d "$HOST_ROOT/.git" ]; then
     git clone --filter=blob:none --depth=1 --branch "$CPYTHON_REF" https://github.com/python/cpython.git "$HOST_ROOT"
-    (cd "$HOST_ROOT" && ./configure --prefix="$BUILD_ROOT/host-python" --without-ensurepip --disable-test-modules)
-    (cd "$HOST_ROOT" && make -j"${JOBS:-16}")
-    (cd "$HOST_ROOT" && make install)
+    (cd "$HOST_ROOT" && env -u SDKROOT -u CC -u CFLAGS -u CPPFLAGS -u LDFLAGS \
+      ./configure --prefix="$BUILD_ROOT/host-python" --without-ensurepip --disable-test-modules)
+    (cd "$HOST_ROOT" && env -u SDKROOT -u CC -u CFLAGS -u CPPFLAGS -u LDFLAGS make -j"${JOBS:-16}")
+    (cd "$HOST_ROOT" && env -u SDKROOT -u CC -u CFLAGS -u CPPFLAGS -u LDFLAGS make install)
   fi
 fi
 "$HOST_PYTHON" --version
