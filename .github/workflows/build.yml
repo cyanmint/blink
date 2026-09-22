@@ -46,6 +46,9 @@ jobs:
           file hermes/Frameworks/HermesRuntime.framework/HermesRuntime
           unzip -t hermes/hermesrt.zip
 
+      - name: Install Hermes runtime into app resources
+        run: ./install_hermes_runtime.sh hermes
+
       - name: Cache framework builds
         id: cache
         uses: actions/cache@v4
