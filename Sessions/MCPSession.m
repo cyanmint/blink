@@ -88,6 +88,17 @@
 
     NSString *homePath = [BlinkPaths homePath];
     ios_setMiniRoot(homePath);
+    // Hermes' working workspace is the user-visible Documents directory.
+    // Keep Blink's mini-root unchanged for path compatibility, but launch each
+    // command from Documents so Python and WebUI use the same default cwd.
+    NSString *workspacePath = [homePath stringByAppendingPathComponent:@"Documents"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:workspacePath
+                               withIntermediateDirectories:YES
+                                                attributes:nil
+                                                     error:nil];
+    setenv("HERMES_HOME", workspacePath.UTF8String, 1);
+    setenv("PWD", workspacePath.UTF8String, 1);
+    chdir(workspacePath.UTF8String);
     [self updateAllowedPaths];
 
     // We are restoring mosh session if possible first.
