@@ -266,7 +266,7 @@ struct TerminalPreviewCell: UIViewRepresentable {
 
     var rawMode: Bool = false
 
-    func attachInput(_ termInput: UIView!) {}
+    func attachInput(_ termInput: (UIView & TermInput)!) {}
     func focus() {}
 
     func viewIsReady() {
