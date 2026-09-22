@@ -170,6 +170,30 @@ for line in lines:
 objects = sorted(set(objects))
 pathlib.Path(pathlib.Path(makefile).parent / "native-module-objects.txt").write_text("\n".join(objects) + "\n")
 PY
+python3 - "$TARGET_ROOT/Modules/Setup.local" "$BUILD_ROOT/native_modules.c" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+setup, output = map(Path, sys.argv[1:])
+modules = []
+for line in setup.read_text(encoding="utf-8").splitlines():
+    line = line.split("#", 1)[0].strip()
+    if not line or line.startswith("*"):
+        continue
+    name = line.split()[0]
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        modules.append(name)
+modules = sorted(set(modules))
+with output.open("w", encoding="utf-8", newline="\n") as stream:
+    stream.write("#include <Python.h>\n")
+    for name in modules:
+        stream.write(f"PyMODINIT_FUNC PyInit_{name}(void);\n")
+    stream.write("\nint hermes_register_native_modules(void) {\n")
+    for name in modules:
+        stream.write(f'    PyImport_AppendInittab("{name}", PyInit_{name});\n')
+    stream.write("    return 0;\n}\n")
+PY
 
 (cd "$TARGET_ROOT" && \
   PATH="$TOOLBIN:/usr/bin:/bin" make -n -o Makefile libpython3.13.a > native-libpython-dryrun.txt)
@@ -220,6 +244,11 @@ PY
   printf '%s\n' Modules/arraymodule.o >> native-module-objects.filtered && \
   printf '%s\n' Modules/_randommodule.o >> native-module-objects.filtered && \
   sort -u native-module-objects.filtered > native-module-objects.txt)
+(cd "$TARGET_ROOT" && \
+  "$TOOLBIN/arm64-apple-ios-clang" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" \
+    -c "$BUILD_ROOT/native_modules.c" -o native_modules.o && \
+  printf '%s\n' native_modules.o >> native-module-objects.txt && \
+  sort -u native-module-objects.txt -o native-module-objects.txt)
 (cd "$TARGET_ROOT" && \
   "$LLVM_AR" rcs libpython3.13.a $(cat native-module-objects.txt) && \
   "$LLVM_RANLIB" libpython3.13.a)

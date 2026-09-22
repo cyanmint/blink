@@ -91,15 +91,7 @@ static int configure_python_stdio(void) {
     return 0;
 }
 
-PyMODINIT_FUNC PyInit_binascii(void);
-PyMODINIT_FUNC PyInit__struct(void);
-PyMODINIT_FUNC PyInit__socket(void);
-PyMODINIT_FUNC PyInit_select(void);
-PyMODINIT_FUNC PyInit_math(void);
-PyMODINIT_FUNC PyInit_cmath(void);
-PyMODINIT_FUNC PyInit__contextvars(void);
-PyMODINIT_FUNC PyInit_array(void);
-PyMODINIT_FUNC PyInit__random(void);
+int hermes_register_native_modules(void);
 
 __attribute__((visibility("default")))
 int hermes_runtime_main(int argc, char **argv) {
@@ -129,15 +121,7 @@ int hermes_runtime_main(int argc, char **argv) {
         return 70;
     }
 
-    PyImport_AppendInittab("binascii", PyInit_binascii);
-    PyImport_AppendInittab("_struct", PyInit__struct);
-    PyImport_AppendInittab("_socket", PyInit__socket);
-    PyImport_AppendInittab("select", PyInit_select);
-    PyImport_AppendInittab("math", PyInit_math);
-    PyImport_AppendInittab("cmath", PyInit_cmath);
-    PyImport_AppendInittab("_contextvars", PyInit__contextvars);
-    PyImport_AppendInittab("array", PyInit_array);
-    PyImport_AppendInittab("_random", PyInit__random);
+    hermes_register_native_modules();
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
     config.parse_argv = 0;
