@@ -467,7 +467,8 @@
 		D2ED4A6F239BB12E000DC67F /* KeyCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2ED4A6E239BB12E000DC67F /* KeyCaptureView.swift */; };
 		D2F30EAD205009CD008C5F35 /* base64js.min.js in Resources */ = {isa = PBXBuildFile; fileRef = D2F30EAC205009CD008C5F35 /* base64js.min.js */; };
 		F10000010000000000000001 /* hermes.m in Sources */ = {isa = PBXBuildFile; fileRef = F10000020000000000000001 /* hermes.m */; };
-		F10000030000000000000001 /* hermes in Resources */ = {isa = PBXBuildFile; fileRef = F10000040000000000000001 /* hermes */; };
+		F10000070000000000000001 /* HermesRuntime.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000090000000000000001 /* HermesRuntime.framework */; };
+		F10000080000000000000001 /* HermesRuntime.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F10000090000000000000001 /* HermesRuntime.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F10000050000000000000001 /* hermesrt.zip in Resources */ = {isa = PBXBuildFile; fileRef = F10000060000000000000001 /* hermesrt.zip */; };
 		D2F330CA20A6CB840074ADD7 /* help.m in Sources */ = {isa = PBXBuildFile; fileRef = D2F330C920A6CB840074ADD7 /* help.m */; };
 		D2F330CC20A6D98C0074ADD7 /* config.m in Sources */ = {isa = PBXBuildFile; fileRef = D2F330CB20A6D98C0074ADD7 /* config.m */; };
@@ -720,6 +721,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
+				F10000080000000000000001 /* HermesRuntime.framework in Embed Frameworks */,
 				D2A9B2F8272E6F26009FCBDE /* BlinkCode.framework in Embed Frameworks */,
 				D2C7710826EA49AA001B5659 /* openssl.xcframework in Embed Frameworks */,
 				BDF2B8D32BC480CC00B9C7EA /* vim.xcframework in Embed Frameworks */,
@@ -1222,7 +1224,7 @@
 		D2ED4A6E239BB12E000DC67F /* KeyCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCaptureView.swift; sourceTree = "<group>"; };
 		D2F30EAC205009CD008C5F35 /* base64js.min.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = base64js.min.js; sourceTree = "<group>"; };
 		F10000020000000000000001 /* hermes.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = hermes.m; sourceTree = "<group>"; };
-		F10000040000000000000001 /* hermes */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = hermes; sourceTree = "<group>"; };
+		F10000090000000000000001 /* HermesRuntime.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = HermesRuntime.framework; sourceTree = "<group>"; };
 		F10000060000000000000001 /* hermesrt.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = hermesrt.zip; sourceTree = "<group>"; };
 		D2F330C920A6CB840074ADD7 /* help.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = help.m; sourceTree = "<group>"; };
 		D2F330CB20A6D98C0074ADD7 /* config.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = config.m; sourceTree = "<group>"; };
@@ -1441,6 +1443,7 @@
 				D2C7710726EA49AA001B5659 /* openssl.xcframework in Frameworks */,
 				D222780C2A26216900D4C708 /* TreeSitterBashRunestone in Frameworks */,
 				D2334EF425C1C28F00385378 /* ios_system.xcframework in Frameworks */,
+				F10000070000000000000001 /* HermesRuntime.framework in Frameworks */,
 				07FABBC425C9AECF00E1CC2C /* BlinkFiles.framework in Frameworks */,
 				BD7AFC4128E8E98C004BCDA4 /* Base32Kit in Frameworks */,
 				0732F1291D06324200AB5438 /* libcurses.tbd in Frameworks */,
@@ -1539,7 +1542,6 @@
 				C94437641D838ABF0096F84E /* Fonts */,
 				C944375F1D831CD30096F84E /* Themes */,
 				0732F04A1D062B9A00AB5438 /* locales.bundle */,
-				F10000040000000000000001 /* hermes */,
 				F10000060000000000000001 /* hermesrt.zip */,
 			);
 			path = Resources;
@@ -1559,6 +1561,7 @@
 				D2334F0A25C1C3A000385378 /* OpenSSH.xcframework */,
 				D2334ECA25C1C04700385378 /* files.xcframework */,
 				D2334ED025C1C04700385378 /* ios_system.xcframework */,
+				F10000090000000000000001 /* HermesRuntime.framework */,
 				D2334EC425C1C04700385378 /* LibSSH.xcframework */,
 				D2334EC525C1C04700385378 /* mosh.xcframework */,
 				D2334EC625C1C04700385378 /* network_ios.xcframework */,
@@ -3238,7 +3241,6 @@
 				07E3AED11D9191B4007BC086 /* blink.png in Resources */,
 				D21A3FE721943BE200269705 /* dark-app-ipad-76pt@2x.png in Resources */,
 				BDE84C3C2BAE335100457391 /* vim in Resources */,
-				F10000030000000000000001 /* hermes in Resources */,
 				F10000050000000000000001 /* hermesrt.zip in Resources */,
 				C9B2E02F1D6B612400B89F69 /* Settings.storyboard in Resources */,
 				D2496F3F20038B3300E75FE9 /* hterm_all.min.js in Resources */,

@@ -79,7 +79,8 @@ PyMODINIT_FUNC PyInit_math(void);
 PyMODINIT_FUNC PyInit_cmath(void);
 PyMODINIT_FUNC PyInit__contextvars(void);
 
-int main(int argc, char **argv) {
+__attribute__((visibility("default")))
+int hermes_runtime_main(int argc, char **argv) {
     const char *runtime_root = getenv("HERMES_RUNTIME_ROOT");
     char runtime_path[PATH_MAX];
     if (runtime_root == NULL || runtime_root[0] == '\0') runtime_root = ".";

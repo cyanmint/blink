@@ -198,7 +198,9 @@ PY
 mkdir -p "$BUILD_ROOT/artifact"
 CC=arm64-apple-ios-clang PATH="$TOOLBIN:$PATH" \
   bash "$ROOT/build/package-native-ios.sh" \
-  "$TARGET_ROOT" "$BUILD_ROOT/artifact/hermes"
-cp "$BUILD_ROOT/artifact/hermes" "$ROOT/hermes"
+  "$TARGET_ROOT" "$BUILD_ROOT/artifact"
+rm -f "$ROOT/hermes"
+rm -rf "$ROOT/Frameworks/HermesRuntime.framework"
+cp -a "$BUILD_ROOT/artifact/HermesRuntime.framework" "$ROOT/Frameworks/HermesRuntime.framework"
 cp "$BUILD_ROOT/artifact/hermesrt.zip" "$ROOT/hermesrt.zip"
-file "$ROOT/hermes" "$ROOT/hermesrt.zip"
+file "$ROOT/Frameworks/HermesRuntime.framework/HermesRuntime" "$ROOT/hermesrt.zip"

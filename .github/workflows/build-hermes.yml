@@ -10,7 +10,7 @@ on:
         default: '16.5'
     outputs:
       artifact-name:
-        description: Artifact containing hermes and hermesrt.zip
+        description: Artifact containing HermesRuntime.framework and hermesrt.zip
         value: hermes-ios-runtime
 
 jobs:
@@ -65,9 +65,9 @@ jobs:
 
       - name: Validate runtime artifacts
         run: |
-          test -x hermes/hermes
+          test -x hermes/HermesRuntime.framework/HermesRuntime
           test -s hermes/hermesrt.zip
-          file hermes/hermes
+          file hermes/HermesRuntime.framework/HermesRuntime
           unzip -t hermes/hermesrt.zip
           python3 - <<'PY'
           import zipfile
@@ -101,7 +101,7 @@ jobs:
         with:
           name: hermes-ios-runtime
           path: |
-            hermes/hermes
+            hermes/HermesRuntime.framework
             hermes/hermesrt.zip
           if-no-files-found: error
           retention-days: 14

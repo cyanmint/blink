@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TARGET_ROOT=${1:?target CPython build directory}
-OUTPUT=${2:?output executable}
-BUILD_ROOT=$(dirname "$OUTPUT")
+OUTPUT_FRAMEWORK=${2:?output framework directory}
+BUILD_ROOT=$(dirname "$OUTPUT_FRAMEWORK")
 HOST_PYTHON=${HOST_PYTHON:-$(dirname "$TARGET_ROOT")/host-python/bin/python3.13}
 ARCHIVE="$BUILD_ROOT/hermesrt.zip"
 OPENSSL_INSTALL=${OPENSSL_INSTALL:-$(dirname "$BUILD_ROOT")/openssl-install}
@@ -88,6 +88,9 @@ with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_STORED) as z:
             z.write(source, target, compress_type=zipfile.ZIP_STORED)
 PY
 
+FRAMEWORK="$OUTPUT_FRAMEWORK/HermesRuntime.framework"
+mkdir -p "$FRAMEWORK/Headers" "$FRAMEWORK/Modules"
+
 CC=${CC:-arm64-apple-ios-clang}
 "$CC" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" -I"$TARGET_ROOT" \
   -c "$ROOT/overlay/cpython/Programs/hermes_main.c" -o "$BUILD_ROOT/hermes_main.o"
@@ -95,8 +98,33 @@ CC=${CC:-arm64-apple-ios-clang}
 -Wl,-headerpad_max_install_names -Wl,-x -Wl,-no_function_starts -Wl,-no_data_in_code_info -Wl,-all_load "$TARGET_ROOT/libpython3.13.a" -Wl,-force_load,"$TARGET_ROOT/Modules/_hacl/libHacl_Hash_SHA2.a" -Wl,-force_load,"$TARGET_ROOT/Modules/expat/libexpat.a" "$BUILD_ROOT/hermes_main.o" \
   -Wl,-rpath,@loader_path -framework CoreFoundation -ldl -lpthread -lm -lz -lsqlite3 \
   -L"$OPENSSL_INSTALL/lib" -lssl -lcrypto "$TARGET_ROOT/ios_compat.o" \
-  -o "$OUTPUT"
-chmod 755 "$OUTPUT"
+  -dynamiclib -install_name "@rpath/HermesRuntime.framework/HermesRuntime" \
+  -Wl,-exported_symbol,_hermes_runtime_main \
+  -o "$FRAMEWORK/HermesRuntime"
+chmod 755 "$FRAMEWORK/HermesRuntime"
+cat > "$FRAMEWORK/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>HermesRuntime</string>
+<key>CFBundleIdentifier</key><string>com.cyan.hermesruntime</string>
+<key>CFBundlePackageType</key><string>FMWK</string>
+<key>CFBundleSupportedPlatforms</key><array><string>iPhoneOS</string></array>
+<key>CFBundleVersion</key><string>1</string>
+</dict></plist>
+PLIST
+cat > "$FRAMEWORK/Headers/HermesRuntime.h" <<'HEADER'
+#ifndef HERMES_RUNTIME_H
+#define HERMES_RUNTIME_H
+int hermes_runtime_main(int argc, char **argv);
+#endif
+HEADER
+cat > "$FRAMEWORK/Modules/module.modulemap" <<'MODULEMAP'
+framework module HermesRuntime {
+  umbrella header "HermesRuntime.h"
+  export *
+}
+MODULEMAP
 python3 - "$ARCHIVE" <<'PY'
 import sys, zipfile
 with zipfile.ZipFile(sys.argv[1]) as z:

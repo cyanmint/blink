@@ -4,13 +4,13 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BLINK_ROOT=${BLINK_ROOT:-$ROOT}
 INPUT_ROOT=${1:-${NATIVE_IOS_BUILD_ROOT:-$ROOT/hermes}}
-SOURCE_EXECUTABLE=${HERMES_EXECUTABLE:-$INPUT_ROOT/hermes}
+SOURCE_FRAMEWORK=${HERMES_RUNTIME_FRAMEWORK:-$INPUT_ROOT/HermesRuntime.framework}
 SOURCE_RUNTIME=${HERMES_RUNTIME_ARCHIVE:-$INPUT_ROOT/hermesrt.zip}
 DEST_ROOT="$BLINK_ROOT/Resources"
-DEST_EXECUTABLE="$DEST_ROOT/hermes"
+DEST_FRAMEWORK="$BLINK_ROOT/Frameworks/HermesRuntime.framework"
 DEST_RUNTIME="$DEST_ROOT/hermesrt.zip"
 
-[ -f "$SOURCE_EXECUTABLE" ] || { echo "missing native Hermes executable: $SOURCE_EXECUTABLE" >&2; exit 2; }
+[ -f "$SOURCE_FRAMEWORK/HermesRuntime" ] || { echo "missing Hermes runtime framework: $SOURCE_FRAMEWORK" >&2; exit 2; }
 [ -f "$SOURCE_RUNTIME" ] || { echo "missing Hermes runtime archive: $SOURCE_RUNTIME" >&2; exit 2; }
 command -v unzip >/dev/null 2>&1 || { echo "unzip is required" >&2; exit 2; }
 unzip -t "$SOURCE_RUNTIME" >/dev/null
@@ -34,10 +34,13 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
 PY
 
 mkdir -p "$DEST_ROOT"
-install -m 755 "$SOURCE_EXECUTABLE" "$DEST_EXECUTABLE.tmp"
+rm -f "$DEST_ROOT/hermes"
+rm -rf "$DEST_FRAMEWORK.tmp"
+cp -a "$SOURCE_FRAMEWORK" "$DEST_FRAMEWORK.tmp"
 install -m 644 "$SOURCE_RUNTIME" "$DEST_RUNTIME.tmp"
-mv -f "$DEST_EXECUTABLE.tmp" "$DEST_EXECUTABLE"
+rm -rf "$DEST_FRAMEWORK"
+mv "$DEST_FRAMEWORK.tmp" "$DEST_FRAMEWORK"
 mv -f "$DEST_RUNTIME.tmp" "$DEST_RUNTIME"
-chmod 755 "$DEST_EXECUTABLE"
-printf 'Installed %s (%s bytes)\n' "$DEST_EXECUTABLE" "$(wc -c < "$DEST_EXECUTABLE")"
+chmod 755 "$DEST_FRAMEWORK/HermesRuntime"
+printf 'Installed %s (%s bytes)\n' "$DEST_FRAMEWORK" "$(wc -c < "$DEST_FRAMEWORK/HermesRuntime")"
 printf 'Installed %s (%s bytes)\n' "$DEST_RUNTIME" "$(wc -c < "$DEST_RUNTIME")"

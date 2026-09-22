@@ -1,12 +1,12 @@
 #import <Foundation/Foundation.h>
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#include "ios_system/ios_system.h"
 #include "ios_error.h"
+
+extern int hermes_runtime_main(int argc, char **argv);
 
 static NSString * const HermesLinkDiagnosticsKey = @"HermesLinkDiagnosticsEnabled";
 
@@ -61,36 +61,27 @@ int hermes_main(int argc, char *argv[]) {
   }
 
   NSBundle *bundle = [NSBundle mainBundle];
-  NSString *executable = [bundle pathForResource:@"hermes" ofType:nil];
+  NSString *framework = [bundle.privateFrameworksPath stringByAppendingPathComponent:@"HermesRuntime.framework/HermesRuntime"];
   NSString *runtime = [bundle pathForResource:@"hermesrt" ofType:@"zip"];
 
-  if (executable.length == 0 || runtime.length == 0) {
+  if (![[NSFileManager defaultManager] fileExistsAtPath:framework] || runtime.length == 0) {
     fprintf(thread_stderr,
-            "hermes: bundled runtime is incomplete (hermes=%s, hermesrt.zip=%s)\n",
-            executable.length ? "ok" : "missing",
+            "hermes: embedded runtime is incomplete (framework=%s, hermesrt.zip=%s)\n",
+            [[NSFileManager defaultManager] fileExistsAtPath:framework] ? "ok" : "missing",
             runtime.length ? "ok" : "missing");
     return 127;
   }
 
-  NSString *runtimeRoot = [runtime stringByDeletingLastPathComponent];
+  NSString *runtimeRoot = bundle.resourcePath;
   setenv("HERMES_RUNTIME_ROOT", runtimeRoot.UTF8String, 1);
 
-  char **childArgv = calloc((size_t)argc + 1, sizeof(*childArgv));
-  if (childArgv == NULL) {
-    fputs("hermes: unable to allocate argument vector\n", thread_stderr);
-    return 70;
-  }
-  childArgv[0] = (char *)executable.UTF8String;
-  for (int i = 1; i < argc; ++i) {
-    childArgv[i] = argv[i];
-  }
-
-  int result = ios_execv(executable.fileSystemRepresentation, childArgv);
-  int savedErrno = errno;
-  free(childArgv);
-  if (result != 0) {
-    fprintf(thread_stderr, "hermes: unable to start bundled runtime: %s\n",
-            strerror(savedErrno));
-  }
-  return result == 0 ? 0 : 126;
+  // The runtime is linked into HermesRuntime.framework. Calling its exported
+  // entry point keeps execution in this ios_system command thread and avoids
+  // ios_execv redispatching the registered "hermes" command recursively.
+  HermesLinkAppendLog("starting embedded Hermes runtime framework");
+  int result = hermes_runtime_main(argc, argv);
+  char resultMessage[96];
+  snprintf(resultMessage, sizeof(resultMessage), "embedded Hermes runtime returned %d", result);
+  HermesLinkAppendLog(resultMessage);
+  return result;
 }
