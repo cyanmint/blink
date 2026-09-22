@@ -6,7 +6,14 @@ BUILD_ROOT=${BUILD_ROOT:-/root/hermes-build/native-ios}
 SDK_VERSION=${IOS_SDK_VERSION:-16.5}
 DEPLOYMENT_TARGET=${IPHONEOS_DEPLOYMENT_TARGET:-13.0}
 SDK_REPO=${IOS_SDK_REPOSITORY:-https://github.com/theos/sdks.git}
-SDK_ROOT=${IOS_SDK_ROOT:-$BUILD_ROOT/sdks/iPhoneOS${SDK_VERSION}.sdk}
+HOST_OS=$(uname -s)
+if [ -n "${IOS_SDK_ROOT:-}" ]; then
+  SDK_ROOT=$IOS_SDK_ROOT
+elif [ "$HOST_OS" = Darwin ]; then
+  SDK_ROOT=$(xcrun --sdk iphoneos --show-sdk-path)
+else
+  SDK_ROOT=$BUILD_ROOT/sdks/iPhoneOS${SDK_VERSION}.sdk
+fi
 CPYTHON_REF=${CPYTHON_REF:-v3.13.9}
 CPYTHON_ROOT=${CPYTHON_ROOT:-$BUILD_ROOT/cpython}
 HOST_PYTHON=${HOST_PYTHON:-$BUILD_ROOT/host-python/bin/python3.13}
@@ -16,10 +23,9 @@ OPENSSL_INSTALL=${OPENSSL_INSTALL:-$BUILD_ROOT/openssl-install}
 TARGET_ROOT=${TARGET_ROOT:-$BUILD_ROOT/target}
 TOOLBIN=$BUILD_ROOT/bin
 
-case "$(uname -s)" in Linux) ;; *) echo 'native iOS build must run in WSL/Linux' >&2; exit 2;; esac
 mkdir -p "$BUILD_ROOT" "$TOOLBIN"
 
-if [ ! -d "$SDK_ROOT" ]; then
+if [ "$HOST_OS" != Darwin ] && [ ! -d "$SDK_ROOT" ]; then
   SDK_REPO_DIR=$BUILD_ROOT/sdks
   if [ ! -d "$SDK_REPO_DIR/.git" ]; then
     git clone --filter=blob:none --sparse --depth=1 "$SDK_REPO" "$SDK_REPO_DIR"
@@ -43,13 +49,18 @@ if [ ! -x "$HOST_PYTHON" ]; then
 fi
 "$HOST_PYTHON" --version
 
+if [ "$HOST_OS" = Darwin ]; then
+  LINKER_FLAGS=""
+else
+  LINKER_FLAGS="-fuse-ld=lld"
+fi
 cat > "$TOOLBIN/arm64-apple-ios-clang" <<EOF
 #!/bin/sh
-exec clang --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT" "\$@" -fuse-ld=lld
+exec clang --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT" "\$@" $LINKER_FLAGS
 EOF
 cat > "$TOOLBIN/arm64-apple-ios-clang++" <<EOF
 #!/bin/sh
-exec clang++ --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT" "\$@" -fuse-ld=lld
+exec clang++ --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT" "\$@" $LINKER_FLAGS
 EOF
 cat > "$TOOLBIN/arm64-apple-ios-cpp" <<EOF
 #!/bin/sh
@@ -78,7 +89,7 @@ if [ ! -f "$OPENSSL_INSTALL/lib/libssl.a" ] || [ ! -f "$OPENSSL_INSTALL/lib/libc
       CFLAGS="-I$SDK_ROOT/usr/include -isysroot $SDK_ROOT -miphoneos-version-min=$DEPLOYMENT_TARGET" \
       ./Configure iphoneos-cross no-shared no-apps no-tests \
         --prefix="$OPENSSL_INSTALL" -static
-    sed -i "s#/SDKs/#$SDK_ROOT#g" Makefile
+    sed -i.bak "s#/SDKs/#$SDK_ROOT#g" Makefile
     make -j16 build_libs
     make install_sw
   )

@@ -11,32 +11,32 @@ on:
         default: false
 
 jobs:
-  hermes-runtime:
-    uses: ./.github/workflows/build-hermes.yml
-    permissions:
-      contents: write
-
   build:
-    needs: hermes-runtime
     runs-on: macos-latest
-    permissions:
-      contents: read
     steps:
       - name: Check out Blink
         uses: actions/checkout@v4
         with:
           submodules: true
 
-      - name: Download Hermes runtime
-        uses: actions/download-artifact@v4
-        with:
-          name: hermes-ios-runtime
-          path: hermes-artifact
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
-      - name: Install Hermes runtime into app resources
+      - name: Build Hermes runtime
+        env:
+          BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
+          IPHONEOS_DEPLOYMENT_TARGET: '16.1'
+          JOBS: 4
         run: |
-          chmod +x install_hermes_runtime.sh
-          ./install_hermes_runtime.sh "$GITHUB_WORKSPACE/hermes-artifact"
+          chmod +x hermes/build/*.sh
+          hermes/build/build-native-ios.sh
+
+      - name: Validate Hermes runtime
+        run: |
+          test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
+          test -s hermes/hermesrt.zip
+          file hermes/Frameworks/HermesRuntime.framework/HermesRuntime
+          unzip -t hermes/hermesrt.zip
 
       - name: Cache framework builds
         id: cache
