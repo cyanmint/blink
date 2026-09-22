@@ -92,7 +92,7 @@ FRAMEWORK="$OUTPUT_FRAMEWORK/HermesRuntime.framework"
 mkdir -p "$FRAMEWORK/Headers" "$FRAMEWORK/Modules"
 
 CC=${CC:-arm64-apple-ios-clang}
-"$CC" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" -I"$TARGET_ROOT" -I"$ROOT/Blink" \
+"$CC" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" -I"$TARGET_ROOT" -I"$ROOT/../Blink" \
   -c "$ROOT/overlay/cpython/Programs/hermes_main.c" -o "$BUILD_ROOT/hermes_main.o"
 "$CC" -mios-version-min="${IPHONEOS_DEPLOYMENT_TARGET:-13.0}" \
 -Wl,-headerpad_max_install_names -Wl,-x -Wl,-no_function_starts -Wl,-no_data_in_code_info -Wl,-all_load "$TARGET_ROOT/libpython3.13.a" -Wl,-force_load,"$TARGET_ROOT/Modules/_hacl/libHacl_Hash_SHA2.a" -Wl,-force_load,"$TARGET_ROOT/Modules/expat/libexpat.a" "$BUILD_ROOT/hermes_main.o" \
