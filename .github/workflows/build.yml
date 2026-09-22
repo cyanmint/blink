@@ -60,11 +60,11 @@ jobs:
 
       - name: Get frameworks
         if: steps.cache.outputs.cache-hit != 'true'
-        run: ./get_frameworks.sh
+        run: bash get_frameworks.sh
 
       - name: Get resources
         if: steps.cache.outputs.cache-hit != 'true'
-        run: ./get_resources.sh
+        run: bash get_resources.sh
 
       - name: Prepare Xcode configuration
         run: cp template_setup.xcconfig developer_setup.xcconfig
