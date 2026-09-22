@@ -7,7 +7,7 @@ OUTPUT_FRAMEWORK=${2:?output framework directory}
 BUILD_ROOT=$(dirname "$OUTPUT_FRAMEWORK")
 HOST_PYTHON=${HOST_PYTHON:-$(dirname "$TARGET_ROOT")/host-python/bin/python3.13}
 ARCHIVE="$BUILD_ROOT/hermesrt.zip"
-OPENSSL_INSTALL=${OPENSSL_INSTALL:-$(dirname "$BUILD_ROOT")/openssl-install}
+OPENSSL_INSTALL=${OPENSSL_INSTALL:-$BUILD_ROOT/openssl-install}
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
