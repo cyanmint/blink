@@ -41,7 +41,7 @@ def get_static_root() -> Path:
     if not archive.is_file():
         return direct
     prefix = inside.split("api/", 1)[0] + "static/"
-    target = archive.parent / ".hermes-webui-static"
+    target = Path(os.getenv("HERMES_HOME", str(archive.parent))) / ".hermes-webui-static"
     import zipfile
     try:
         with zipfile.ZipFile(archive) as bundle:
@@ -71,14 +71,26 @@ if "_discover_agent_dir" in text:
 # Inject at the start of the discovery function, before filesystem candidates.
 anchor = 'def _discover_agent_dir() -> Path:\n'
 injection = '''def _discover_agent_dir() -> Path:
-    # The bundled Agent lives at hermesrt.zip/hermes.  It is already on
-    # sys.path, but Path.exists() is false for a nested ZIP path.
+    # The bundled Agent lives inside hermesrt.zip.  Extract it to the writable
+    # HERMES_HOME so filesystem-based config/discovery code can use it on iOS.
     _origin = str(Path(__file__).resolve())
     if ".zip/" in _origin:
-        _archive = _origin.split(".zip/", 1)[0] + ".zip"
-        _bundled = Path(_archive + "/hermes")
-        if _bundled.exists() or Path(_archive).is_file():
-            return _bundled
+        _archive = Path(_origin.split(".zip/", 1)[0] + ".zip")
+        _target = Path(os.getenv("HERMES_HOME", str(Path.home()))) / ".hermes-agent"
+        try:
+            with zipfile.ZipFile(_archive) as _bundle:
+                _prefix = "hermes/"
+                for _name in _bundle.namelist():
+                    if not _name.startswith(_prefix) or _name.endswith("/"):
+                        continue
+                    _destination = _target / _name[len(_prefix):]
+                    _destination.parent.mkdir(parents=True, exist_ok=True)
+                    _data = _bundle.read(_name)
+                    if not _destination.exists() or _destination.read_bytes() != _data:
+                        _destination.write_bytes(_data)
+            return _target
+        except (OSError, KeyError, zipfile.BadZipFile):
+            pass
 '''
 if 'The bundled Agent lives at hermesrt.zip/hermes.' not in text:
     if anchor not in text:

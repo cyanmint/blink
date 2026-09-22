@@ -106,9 +106,15 @@ void __setupProcessEnv(void) {
   });
   
   NSString *homePath = BlinkPaths.homePath;
+  NSString *documentsPath = [homePath stringByAppendingPathComponent:@"Documents"];
+  [[NSFileManager defaultManager] createDirectoryAtPath:documentsPath
+                             withIntermediateDirectories:YES
+                                              attributes:nil
+                                                   error:nil];
   setenv("HOME", homePath.UTF8String, 1);
   setenv("SSH_HOME", homePath.UTF8String, 1);
   setenv("CURL_HOME", homePath.UTF8String, 1);
+  setenv("HERMES_HOME", documentsPath.UTF8String, 1);
   
   NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
   [nc addObserver:self
