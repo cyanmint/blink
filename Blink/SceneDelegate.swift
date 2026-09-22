@@ -173,6 +173,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     willConnectTo session: UISceneSession,
     options connectionOptions: UIScene.ConnectionOptions)
   {
+    HermesLinkAppendLog("scene willConnectTo")
     _ = KBTracker.shared
 
     guard let windowScene = scene as? UIWindowScene else {

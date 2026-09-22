@@ -237,6 +237,7 @@ class TermController: UIViewController {
   }
 
   public override func loadView() {
+    HermesLinkAppendLog("TermController loadView")
     super.loadView()
     _termDevice.delegate = self
     _termDevice.attachView(_termView)
@@ -248,6 +249,7 @@ class TermController: UIViewController {
   }
 
   public override func viewDidLoad() {
+    HermesLinkAppendLog("TermController viewDidLoad")
     super.viewDidLoad()
     viewIsLoaded = true
 

@@ -81,6 +81,7 @@ void __setupProcessEnv(void) {
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+  HermesLinkAppendLog("application didFinishLaunching");
   
   [Migrator perform];
 

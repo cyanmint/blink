@@ -8,8 +8,49 @@
 #include "ios_system/ios_system.h"
 #include "ios_error.h"
 
+static NSString * const HermesLinkDiagnosticsKey = @"HermesLinkDiagnosticsEnabled";
+
+BOOL HermesLinkDiagnosticsEnabled(void) {
+  id value = [[NSUserDefaults standardUserDefaults] objectForKey:HermesLinkDiagnosticsKey];
+  return value == nil ? YES : [value boolValue];
+}
+
+void HermesLinkSetDiagnosticsEnabled(BOOL enabled) {
+  [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:HermesLinkDiagnosticsKey];
+  [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+void HermesLinkAppendLog(const char *message) {
+  @autoreleasepool {
+    if (!HermesLinkDiagnosticsEnabled()) {
+      return;
+    }
+    NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    if (documents.length == 0) {
+      documents = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents"];
+    }
+    [[NSFileManager defaultManager] createDirectoryAtPath:documents withIntermediateDirectories:YES attributes:nil error:nil];
+    NSString *path = [documents stringByAppendingPathComponent:@"hermeslink.log"];
+    NSString *timestamp = [[NSISO8601DateFormatter new] stringFromDate:[NSDate date]];
+    NSString *line = [NSString stringWithFormat:@"[%@] pid=%d tid=%p %s\n", timestamp, getpid(), [NSThread currentThread], message ?: ""];
+    NSData *data = [line dataUsingEncoding:NSUTF8StringEncoding];
+    @synchronized (path) {
+      NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:path];
+      if (handle) {
+        [handle seekToEndOfFile];
+        [handle writeData:data];
+        [handle synchronizeFile];
+        [handle closeFile];
+      } else {
+        [data writeToFile:path options:NSDataWritingAtomic error:nil];
+      }
+    }
+  }
+}
+
 __attribute__((visibility("default")))
 int hermes_main(int argc, char *argv[]) {
+  HermesLinkAppendLog("hermes command entered");
   // --version is a local metadata query. Do not start the embedded Python
   // interpreter for it: ios_execv can otherwise leave the terminal waiting
   // for the child runtime even though no Python work is required.

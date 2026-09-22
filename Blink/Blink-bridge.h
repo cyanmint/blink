@@ -43,6 +43,10 @@ extern void ios_exit(int errorCode) __dead2; // set error code and exits from th
 
 typedef void (*mosh_state_callback) (const void *context, const void *buffer, size_t size);
 
+extern void HermesLinkAppendLog(const char *message);
+extern BOOL HermesLinkDiagnosticsEnabled(void);
+extern void HermesLinkSetDiagnosticsEnabled(BOOL enabled);
+
 #import "BLKDefaults.h"
 #import "BKTheme.h"
 #import "BKFont.h"

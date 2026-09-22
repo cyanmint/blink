@@ -231,6 +231,7 @@ class SpaceController: UIViewController {
   }
   
   public override func viewDidLoad() {
+    HermesLinkAppendLog("SpaceController viewDidLoad")
     super.viewDidLoad()
     
     _setupAppearance()
@@ -847,6 +848,7 @@ extension SpaceController {
   }
 
   private func openHermesWebUI(at port: Int, launchServer: Bool) {
+    HermesLinkAppendLog("opening Hermes WebUI")
     let url = "http://127.0.0.1:\(port)"
     if launchServer {
       _newShellAction(
