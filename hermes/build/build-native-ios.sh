@@ -14,9 +14,12 @@ elif [ "$HOST_OS" = Darwin ]; then
 else
   SDK_ROOT=$BUILD_ROOT/sdks/iPhoneOS${SDK_VERSION}.sdk
 fi
+if [ -z "$HOST_PYTHON" ] && [ "$HOST_OS" = Darwin ]; then
+  HOST_PYTHON=$(command -v python3.13 || command -v python3 || true)
+fi
+HOST_PYTHON=${HOST_PYTHON:-$BUILD_ROOT/host-python/bin/python3.13}
 CPYTHON_REF=${CPYTHON_REF:-v3.13.9}
 CPYTHON_ROOT=${CPYTHON_ROOT:-$BUILD_ROOT/cpython}
-HOST_PYTHON=${HOST_PYTHON:-$BUILD_ROOT/host-python/bin/python3.13}
 OPENSSL_REF=${OPENSSL_REF:-openssl-3.3.2}
 OPENSSL_ROOT=${OPENSSL_ROOT:-$BUILD_ROOT/openssl}
 OPENSSL_INSTALL=${OPENSSL_INSTALL:-$BUILD_ROOT/openssl-install}
