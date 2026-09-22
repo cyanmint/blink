@@ -93,7 +93,9 @@ if [ ! -f "$OPENSSL_INSTALL/lib/libssl.a" ] || [ ! -f "$OPENSSL_INSTALL/lib/libc
       CFLAGS="-I$SDK_ROOT/usr/include -isysroot $SDK_ROOT -miphoneos-version-min=$DEPLOYMENT_TARGET" \
       ./Configure iphoneos-cross no-shared no-apps no-tests \
         --prefix="$OPENSSL_INSTALL" -static
-    sed -i.bak "s#/SDKs/#$SDK_ROOT#g" Makefile
+    if [ "$HOST_OS" != Darwin ]; then
+      sed -i.bak "s#/SDKs/#$SDK_ROOT#g" Makefile
+    fi
     make -j16 build_libs
     make install_sw
   )
