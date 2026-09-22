@@ -3,19 +3,15 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
-
-#include "ios_error.h"
+#include <dlfcn.h>
 
 static void report_runtime_message(const char *message) {
-    if (thread_stderr != NULL) {
-        ios_fputs(message, thread_stderr);
-        ios_fputs("\n", thread_stderr);
-        ios_fflush(thread_stderr);
-    } else {
-        fputs(message, stderr);
-        fputs("\n", stderr);
-        fflush(stderr);
+    typedef void (*append_log_fn)(const char *);
+    append_log_fn append_log = (append_log_fn)dlsym(RTLD_DEFAULT, "HermesLinkAppendLog");
+    if (append_log != NULL) {
+        append_log(message);
     }
+    dprintf(STDERR_FILENO, "%s\n", message);
 }
 
 static char **build_argv(int argc, char **argv) {
