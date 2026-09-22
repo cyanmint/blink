@@ -200,6 +200,7 @@ CC=arm64-apple-ios-clang PATH="$TOOLBIN:$PATH" \
   bash "$ROOT/build/package-native-ios.sh" \
   "$TARGET_ROOT" "$BUILD_ROOT/artifact"
 rm -f "$ROOT/hermes"
+mkdir -p "$ROOT/Frameworks"
 rm -rf "$ROOT/Frameworks/HermesRuntime.framework"
 cp -a "$BUILD_ROOT/artifact/HermesRuntime.framework" "$ROOT/Frameworks/HermesRuntime.framework"
 cp "$BUILD_ROOT/artifact/hermesrt.zip" "$ROOT/hermesrt.zip"
