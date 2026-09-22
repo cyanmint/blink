@@ -42,6 +42,8 @@ struct SettingsView: View {
   @State private var _iCloudSyncOn = BKUserConfigurationManager.userSettingsValue(forKey: BKUserConfigiCloud)
   @State private var _autoLockOn = BKUserConfigurationManager.userSettingsValue(forKey: BKUserConfigAutoLock)
   @State private var _defaultUser = BLKDefaults.defaultUserName() ?? ""
+  @State private var _autoStartHermesWebUI = UserDefaults.standard.object(forKey: "HermesLinkAutoStartWebUI") == nil || UserDefaults.standard.bool(forKey: "HermesLinkAutoStartWebUI")
+  @State private var _openWebUIInForeground = UserDefaults.standard.object(forKey: "HermesLinkOpenWebUIInForeground") == nil || UserDefaults.standard.bool(forKey: "HermesLinkOpenWebUIInForeground")
 
   @StateObject private var _entitlements: EntitlementsManager = .shared
   @StateObject private var _model = PurchasesUserModel.shared
@@ -149,6 +151,20 @@ struct SettingsView: View {
           GesturesView()
         }
 #endif
+      }
+
+      Section("HermesLink") {
+        Toggle("Start WebUI when opening", isOn: $_autoStartHermesWebUI)
+          .onChange(of: _autoStartHermesWebUI) { enabled in
+            UserDefaults.standard.set(enabled, forKey: "HermesLinkAutoStartWebUI")
+          }
+        Toggle("Open WebUI in foreground", isOn: $_openWebUIInForeground)
+          .onChange(of: _openWebUIInForeground) { enabled in
+            UserDefaults.standard.set(enabled, forKey: "HermesLinkOpenWebUIInForeground")
+          }
+        Text("Three-finger swipe up opens settings. Three-finger swipe down opens the WebUI at 127.0.0.1:8787.")
+          .font(.footnote)
+          .foregroundColor(.secondary)
       }
 
       Section("Configuration") {

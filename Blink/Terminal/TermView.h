@@ -123,6 +123,8 @@ extern NSString * TermViewBrowserReadyNotificationKey;
 - (void)displayInput:(NSString *)input;
 - (void)apiResponse:(NSString *)name response:(NSString *)response;
 - (void)addBrowserWebView:(NSURL *)url agent: (NSString *)agent injectUIO: (BOOL) injectUIO;
+- (void)showBrowserWebView:(NSURL *)url;
+- (void)moveSharedBrowserWebViewIfPresent;
 
 - (void)modifySideOfSelection;
 - (void)modifySelectionInDirection:(NSString *)direction granularity:(NSString *)granularity;

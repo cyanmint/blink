@@ -70,6 +70,7 @@ class SpaceController: UIViewController {
   private var _blinkMenu: BlinkMenu? = nil
   private var _bottomTapAreaView = UIView()
   private var _termSettingsSwipe: UISwipeGestureRecognizer!
+  private var _webUISwipe: UISwipeGestureRecognizer!
 
   // Snips Input Mode tracking
   private var _isSnipsInputModeActive: Bool = false {
@@ -283,6 +284,11 @@ class SpaceController: UIViewController {
     _termSettingsSwipe.direction = .up
     _termSettingsSwipe.numberOfTouchesRequired = 3
     view.addGestureRecognizer(_termSettingsSwipe)
+
+    _webUISwipe = UISwipeGestureRecognizer(target: self, action: #selector(_openHermesWebUI(_:)))
+    _webUISwipe.direction = .down
+    _webUISwipe.numberOfTouchesRequired = 3
+    view.addGestureRecognizer(_webUISwipe)
     
     NotificationCenter.default.addObserver(self, selector: #selector(_geoTrackStateChanged), name: NSNotification.Name.BLGeoTrackStateChange, object: nil)
     
@@ -838,41 +844,32 @@ extension SpaceController {
     // previously launched app instance) already owns this port.
     let url = URL(string: "http://127.0.0.1:\(port)/api/config")!
     URLSession.shared.dataTask(with: url) { _, response, _ in
-      if let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
+      if response is HTTPURLResponse {
         completion(port, false)
         return
       }
 
       portIsOccupied(port) { occupied in
-        if occupied {
-          findHermesWebUIPort(port + 1, completion: completion)
-        } else {
-          completion(port, true)
-        }
+        completion(port, !occupied)
       }
     }.resume()
   }
 
   private func openHermesWebUI(at port: Int, launchServer: Bool) {
     HermesLinkAppendLog("opening Hermes WebUI")
-    let url = "http://127.0.0.1:\(port)"
     if launchServer {
-      // Keep the server in the terminal that owns it.  Do not background or
-      // silence it: this is the diagnostic shell for the automatically opened
-      // WebUI and can be toggled between Shell and Web by TermView.
-      _newShellAction(
-        command: "hermes webui --host 127.0.0.1 --port \(port)",
-        animated: false
-      )
+      // Keep the server in the terminal that owns it. Do not background or
+      // silence it: this is the diagnostic shell for the WebUI.
       let webUITerm = currentTerm()
-      // Give the embedded Python runtime time to bind before WebKit loads it.
-      DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-        guard let webUITerm,
-              let webURL = URL(string: url) else { return }
-        webUITerm.termView.addBrowserWebView(webURL, agent: "", injectUIO: false)
+      webUITerm?.enqueueCommand("hermes webui --host 127.0.0.1 --port \(port)")
+      if UserDefaults.standard.object(forKey: "HermesLinkOpenWebUIInForeground") == nil ||
+         UserDefaults.standard.bool(forKey: "HermesLinkOpenWebUIInForeground") {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+          guard let webUITerm,
+                let webURL = URL(string: "http://127.0.0.1:8787") else { return }
+          webUITerm.termView.showBrowserWebView(webURL)
+        }
       }
-    } else {
-      _newShellAction(command: "browse \(url)", animated: true)
     }
   }
 
@@ -901,6 +898,15 @@ extension SpaceController {
         waiters.forEach { $0(port, shouldLaunch) }
       }
     }
+  }
+
+  @objc private func _openHermesWebUI(_ recognizer: UISwipeGestureRecognizer) {
+    guard let term = currentTerm(),
+          let url = URL(string: "http://127.0.0.1:8787") else { return }
+    if Self.hermesWebUIPort == nil {
+      startHermesWebUI()
+    }
+    term.termView.showBrowserWebView(url)
   }
 
   @objc func newShellAction() {
@@ -1171,14 +1177,7 @@ extension SpaceController {
 
   @objc private func _openTermSettings(_ recognizer: UISwipeGestureRecognizer) {
     guard presentedViewController == nil else { return }
-    HermesLinkAppendLog("opening Term Settings")
-    let controller = UIHostingController(rootView: TermSettingsView())
-    controller.modalPresentationStyle = .pageSheet
-    if let sheet = controller.sheetPresentationController {
-      sheet.detents = [.medium(), .large()]
-      sheet.prefersGrabberVisible = true
-    }
-    present(controller, animated: true)
+    showConfigAction()
   }
   
   @objc func toggleGeoTrack() {
@@ -1297,6 +1296,7 @@ extension SpaceController {
     _viewportsController.setViewControllers([term], direction: direction, animated: animated) { (didComplete) in
       term.resumeIfNeeded()
       self._currentKey = term.meta.key
+      term.termView.moveSharedBrowserWebViewIfPresent()
       self._displayHUD()
       self._attachInputToCurrentTerm()
       self._spaceControllerAnimating = false

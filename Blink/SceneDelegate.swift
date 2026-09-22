@@ -242,7 +242,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     if session.role == .windowApplication {
       DispatchQueue.main.async { [weak self] in
-        self?._spCtrl.startHermesWebUI()
+        if UserDefaults.standard.object(forKey: "HermesLinkAutoStartWebUI") == nil ||
+           UserDefaults.standard.bool(forKey: "HermesLinkAutoStartWebUI") {
+          self?._spCtrl.startHermesWebUI()
+        }
       }
     }
 

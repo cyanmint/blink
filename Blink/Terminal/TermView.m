@@ -57,6 +57,8 @@ struct winsize __winSizeFromJSON(NSDictionary *json) {
 @interface TermView () <WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, UIGestureRecognizerDelegate, UIEditMenuInteractionDelegate>
 @end
 
+static VSCodeInput *SharedBrowserView;
+
 @implementation TermView {
   WKWebViewGesturesInteraction *_gestureInteraction;
   
@@ -73,7 +75,6 @@ struct winsize __winSizeFromJSON(NSDictionary *json) {
   NSMutableArray *_touchesArray;
   
   id<UIInteraction> _editMenuIteraction;
-  UIButton *_browserToggleButton;
 }
 
 
@@ -221,6 +222,22 @@ struct winsize __winSizeFromJSON(NSDictionary *json) {
 
 - (void)addBrowserWebView:(NSURL *)url agent: (NSString *)agent injectUIO: (BOOL) injectUIO
 {
+  if (SharedBrowserView) {
+    _browserView = SharedBrowserView;
+    [_browserView removeFromSuperview];
+    [self addSubview:_browserView];
+    _browserView.UIDelegate = self;
+    _browserView.navigationDelegate = self;
+    _browserView.translatesAutoresizingMaskIntoConstraints = NO;
+    [NSLayoutConstraint activateConstraints:@[
+      [_browserView.topAnchor constraintEqualToAnchor:_webView.topAnchor],
+      [_browserView.leadingAnchor constraintEqualToAnchor:_webView.leadingAnchor],
+      [_browserView.trailingAnchor constraintEqualToAnchor:_webView.trailingAnchor],
+      [_browserView.bottomAnchor constraintEqualToAnchor:_webView.bottomAnchor]
+    ]];
+    [_browserView loadRequest:[NSURLRequest requestWithURL:url]];
+    return;
+  }
   WKWebViewConfiguration *configuration = [[WKWebViewConfiguration alloc] init];
   if (@available(iOS 18.0, *)) {
     configuration.writingToolsBehavior = UIWritingToolsBehaviorNone;
@@ -242,6 +259,7 @@ struct winsize __winSizeFromJSON(NSDictionary *json) {
 
 
   _browserView = [[VSCodeInput alloc] initWithFrame:CGRectZero configuration:configuration];
+  SharedBrowserView = _browserView;
   _browserView.customUserAgent =
 //  [@"Mozilla/5.0 (Linux; Intel Mac OS X 10_15_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15 " stringByAppendingString:agent];
   [@"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15 " stringByAppendingString:agent];
@@ -264,42 +282,22 @@ struct winsize __winSizeFromJSON(NSDictionary *json) {
     [_browserView.bottomAnchor constraintEqualToAnchor:_webView.bottomAnchor]
   ]];
 
-  if (!_browserToggleButton) {
-    _browserToggleButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    _browserToggleButton.translatesAutoresizingMaskIntoConstraints = NO;
-    _browserToggleButton.backgroundColor = [[UIColor systemBackgroundColor] colorWithAlphaComponent:0.9];
-    _browserToggleButton.layer.cornerRadius = 8.0;
-    [_browserToggleButton setTitle:@"Shell" forState:UIControlStateNormal];
-    [_browserToggleButton addTarget:self action:@selector(_toggleBrowser) forControlEvents:UIControlEventTouchUpInside];
-    [self addSubview:_browserToggleButton];
-    [NSLayoutConstraint activateConstraints:@[
-      [_browserToggleButton.topAnchor constraintEqualToAnchor:self.topAnchor constant:8.0],
-      [_browserToggleButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-8.0],
-      [_browserToggleButton.widthAnchor constraintEqualToConstant:72.0],
-      [_browserToggleButton.heightAnchor constraintEqualToConstant:36.0]
-    ]];
-  }
-
   NSURLRequest *request = [NSURLRequest requestWithURL:url];
   [_browserView loadRequest:request];
 }
 
-- (void)_toggleBrowser
+- (void)showBrowserWebView:(NSURL *)url
 {
-  BOOL showShell = !_browserView.hidden;
-  _browserView.hidden = showShell;
-  [_browserToggleButton setTitle:(showShell ? @"Web" : @"Shell") forState:UIControlStateNormal];
+  [self addBrowserWebView:url agent:@"" injectUIO:NO];
+  [_device attachInput:_browserView];
+  [_browserView becomeFirstResponder];
+}
 
-  if (showShell) {
-    [_browserView resignFirstResponder];
-    [_device attachInput:_webView];
-    [_device focus];
-    [_webView becomeFirstResponder];
-  } else {
-    [_device attachInput:_browserView];
-    [_browserView becomeFirstResponder];
+- (void)moveSharedBrowserWebViewIfPresent
+{
+  if (SharedBrowserView && SharedBrowserView.superview != self) {
+    [self addBrowserWebView:SharedBrowserView.URL agent:@"" injectUIO:NO];
   }
-  [self bringSubviewToFront:_browserToggleButton];
 }
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {

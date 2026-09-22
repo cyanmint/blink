@@ -47,7 +47,10 @@ import Foundation
   }
   static private var firstUsagePrompt: String {
     """
-\u{1B}[30;48;5;45m Type \u{1B}[0m\u{1B}[38;5;45m\u{1B}[0m
+\u{1B}[30;48;5;45m Type \u{1B}[0m \u{1B}[38;5;45m\u{1B}[0m
+Run `hermes model` to sign in to your model provider.
+Three-finger swipe up - Open settings
+Three-finger swipe down - Open the WebUI at 127.0.0.1:8787
 ssh, mosh - Connect to remote
 code - Code session
 build - Build dev environments
