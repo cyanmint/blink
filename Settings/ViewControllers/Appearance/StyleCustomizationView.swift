@@ -266,6 +266,9 @@ struct TerminalPreviewCell: UIViewRepresentable {
 
     var rawMode: Bool = false
 
+    func attachInput(_ termInput: UIView!) {}
+    func focus() {}
+
     func viewIsReady() {
       guard let tv = termView else { return }
       tv.setWidth(60)
