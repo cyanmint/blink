@@ -18,6 +18,7 @@ if [ -z "${HOST_PYTHON:-}" ] && [ "$HOST_OS" = Darwin ]; then
   HOST_PYTHON=$(command -v python3.13 || command -v python3 || true)
 fi
 HOST_PYTHON=${HOST_PYTHON:-$BUILD_ROOT/host-python/bin/python3.13}
+export HOST_PYTHON
 CPYTHON_REF=${CPYTHON_REF:-v3.13.9}
 CPYTHON_ROOT=${CPYTHON_ROOT:-$BUILD_ROOT/cpython}
 OPENSSL_REF=${OPENSSL_REF:-openssl-3.3.2}
