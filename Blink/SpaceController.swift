@@ -69,6 +69,7 @@ class SpaceController: UIViewController {
   private var _snippetsVC: SnippetsViewController? = nil
   private var _blinkMenu: BlinkMenu? = nil
   private var _bottomTapAreaView = UIView()
+  private var _termSettingsEdgePan: UIScreenEdgePanGestureRecognizer!
 
   // Snips Input Mode tracking
   private var _isSnipsInputModeActive: Bool = false {
@@ -277,6 +278,11 @@ class SpaceController: UIViewController {
     doubleTap.numberOfTapsRequired = 2
     doubleTap.numberOfTouchesRequired = 1
     _bottomTapAreaView.addGestureRecognizer(doubleTap)
+
+    _termSettingsEdgePan = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(_openTermSettings(_:)))
+    _termSettingsEdgePan.edges = .top
+    _termSettingsEdgePan.cancelsTouchesInView = false
+    view.addGestureRecognizer(_termSettingsEdgePan)
     
     NotificationCenter.default.addObserver(self, selector: #selector(_geoTrackStateChanged), name: NSNotification.Name.BLGeoTrackStateChange, object: nil)
     
@@ -1155,6 +1161,18 @@ extension SpaceController {
   @objc func toggleQuickActionsAction() {
     _interactiveSpaceController()
       ._toggleQuickActionActionWith(receiver: self)
+  }
+
+  @objc private func _openTermSettings(_ recognizer: UIScreenEdgePanGestureRecognizer) {
+    guard recognizer.state == .ended, presentedViewController == nil else { return }
+    HermesLinkAppendLog("opening Term Settings")
+    let controller = UIHostingController(rootView: TermSettingsView())
+    controller.modalPresentationStyle = .pageSheet
+    if let sheet = controller.sheetPresentationController {
+      sheet.detents = [.medium(), .large()]
+      sheet.prefersGrabberVisible = true
+    }
+    present(controller, animated: true)
   }
   
   @objc func toggleGeoTrack() {

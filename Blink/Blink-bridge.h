@@ -33,6 +33,7 @@
 #ifndef Blink_bridge_h
 #define Blink_bridge_h
 
+#import <UIKit/UIKit.h>
 #include <stdio.h>
 #include <pthread.h>
 

@@ -42,7 +42,7 @@ struct SettingsView: View {
   @State private var _iCloudSyncOn = BKUserConfigurationManager.userSettingsValue(forKey: BKUserConfigiCloud)
   @State private var _autoLockOn = BKUserConfigurationManager.userSettingsValue(forKey: BKUserConfigAutoLock)
   @State private var _defaultUser = BLKDefaults.defaultUserName() ?? ""
-  @State private var _diagnosticsOn = HermesLinkDiagnosticsEnabled()
+
   @StateObject private var _entitlements: EntitlementsManager = .shared
   @StateObject private var _model = PurchasesUserModel.shared
   @State private var _displayBlinkClassicToPlus = false
@@ -151,16 +151,6 @@ struct SettingsView: View {
 #endif
       }
 
-      Section("Logs") {
-        Toggle("App, Term and WebUI logs", isOn: $_diagnosticsOn)
-          .onChange(of: _diagnosticsOn) { enabled in
-            HermesLinkSetDiagnosticsEnabled(enabled)
-          }
-        Text("Diagnostics are saved to Documents/hermeslink.log.")
-          .font(.footnote)
-          .foregroundColor(.secondary)
-      }
-
       Section("Configuration") {
         Row {
           Label("Bookmarks", systemImage: "bookmark")
@@ -242,7 +232,6 @@ struct SettingsView: View {
       _iCloudSyncOn = BKUserConfigurationManager.userSettingsValue(forKey: BKUserConfigiCloud)
       _autoLockOn = BKUserConfigurationManager.userSettingsValue(forKey: BKUserConfigAutoLock)
       _defaultUser = BLKDefaults.defaultUserName() ?? ""
-      _diagnosticsOn = HermesLinkDiagnosticsEnabled()
 
     }
     .listStyle(.grouped)
@@ -251,6 +240,33 @@ struct SettingsView: View {
       BlinkClassicToPlusWindow(urlHandler: blink_openurl, dismissHandler: { _displayBlinkClassicToPlus = false })
     }
 
+  }
+}
+
+struct TermSettingsView: View {
+  @Environment(\.dismiss) private var _dismiss
+  @State private var _diagnosticsOn = HermesLinkDiagnosticsEnabled()
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("Logs") {
+          Toggle("App, Term and WebUI logs", isOn: $_diagnosticsOn)
+            .onChange(of: _diagnosticsOn) { enabled in
+              HermesLinkSetDiagnosticsEnabled(enabled)
+            }
+          Text("Diagnostics are saved to Documents/hermeslink.log.")
+            .font(.footnote)
+            .foregroundColor(.secondary)
+        }
+      }
+      .navigationTitle("Term Settings")
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done") { _dismiss() }
+        }
+      }
+    }
   }
 }
 
