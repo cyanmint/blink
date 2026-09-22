@@ -98,6 +98,8 @@ PyMODINIT_FUNC PyInit_select(void);
 PyMODINIT_FUNC PyInit_math(void);
 PyMODINIT_FUNC PyInit_cmath(void);
 PyMODINIT_FUNC PyInit__contextvars(void);
+PyMODINIT_FUNC PyInit_array(void);
+PyMODINIT_FUNC PyInit__random(void);
 
 __attribute__((visibility("default")))
 int hermes_runtime_main(int argc, char **argv) {
@@ -134,6 +136,8 @@ int hermes_runtime_main(int argc, char **argv) {
     PyImport_AppendInittab("math", PyInit_math);
     PyImport_AppendInittab("cmath", PyInit_cmath);
     PyImport_AppendInittab("_contextvars", PyInit__contextvars);
+    PyImport_AppendInittab("array", PyInit_array);
+    PyImport_AppendInittab("_random", PyInit__random);
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
     config.parse_argv = 0;
