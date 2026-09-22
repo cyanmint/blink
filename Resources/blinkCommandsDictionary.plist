@@ -58,6 +58,13 @@
 		<string></string>
 		<string>no</string>
 	</array>
+	<key>python</key>
+	<array>
+		<string>MAIN</string>
+		<string>python_main</string>
+		<string></string>
+		<string>no</string>
+	</array>
 	<key>facecam</key>
 	<array>
 		<string>MAIN</string>

@@ -110,7 +110,8 @@ int hermes_runtime_main(int argc, char **argv) {
             setenv("HERMES_WEBUI_PORT", argv[i + 1], 1);
         }
     }
-    if (argc == 2 && (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-V") == 0)) {
+    if (getenv("HERMES_PYTHON_MODE") == NULL && argc == 2 &&
+            (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-V") == 0)) {
         static const char version[] = "Hermes Agent v0.21.2\n";
         (void)write(STDOUT_FILENO, version, sizeof(version) - 1);
         return 0;
@@ -216,6 +217,32 @@ int hermes_runtime_main(int argc, char **argv) {
 
     if (configure_python_stdio() != 0) {
         int result = report_python_error("configure Python stdio");
+        Py_FinalizeEx();
+        PyConfig_Clear(&config);
+        free(python_argv);
+        return result;
+    }
+
+    if (getenv("HERMES_PYTHON_MODE") != NULL) {
+        int result = 0;
+        if (argc > 1 && strcmp(argv[1], "-c") == 0 && argc > 2) {
+            result = PyRun_SimpleString(argv[2]);
+        } else if (argc > 1 && argv[1][0] != '-') {
+            FILE *script = fopen(argv[1], "r");
+            if (script == NULL) {
+                report_runtime_message("python: unable to open script");
+                result = 2;
+            } else {
+                result = PyRun_SimpleFileExFlags(script, argv[1], 1, NULL);
+            }
+        } else {
+            result = PyRun_SimpleString(
+                "import code; code.interact(local=dict(globals(), **locals()))");
+        }
+        if (result != 0 && PyErr_Occurred()) {
+            report_python_error("run python");
+        }
+        flush_python_stdio();
         Py_FinalizeEx();
         PyConfig_Clear(&config);
         free(python_argv);

@@ -91,3 +91,11 @@ int hermes_main(int argc, char *argv[]) {
   HermesLinkAppendLog(resultMessage);
   return result;
 }
+
+__attribute__((visibility("default")))
+int python_main(int argc, char *argv[]) {
+  setenv("HERMES_PYTHON_MODE", "1", 1);
+  int result = hermes_runtime_main(argc, argv);
+  unsetenv("HERMES_PYTHON_MODE");
+  return result;
+}
