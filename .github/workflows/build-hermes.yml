@@ -65,9 +65,9 @@ jobs:
 
       - name: Validate runtime artifacts
         run: |
-          test -x hermes/HermesRuntime.framework/HermesRuntime
+          test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
           test -s hermes/hermesrt.zip
-          file hermes/HermesRuntime.framework/HermesRuntime
+          file hermes/Frameworks/HermesRuntime.framework/HermesRuntime
           unzip -t hermes/hermesrt.zip
           python3 - <<'PY'
           import zipfile
@@ -101,7 +101,7 @@ jobs:
         with:
           name: hermes-ios-runtime
           path: |
-            hermes/HermesRuntime.framework
+            hermes/Frameworks/HermesRuntime.framework
             hermes/hermesrt.zip
           if-no-files-found: error
           retention-days: 14

@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BLINK_ROOT=${BLINK_ROOT:-$ROOT}
 INPUT_ROOT=${1:-${NATIVE_IOS_BUILD_ROOT:-$ROOT/hermes}}
-SOURCE_FRAMEWORK=${HERMES_RUNTIME_FRAMEWORK:-$INPUT_ROOT/HermesRuntime.framework}
+SOURCE_FRAMEWORK=${HERMES_RUNTIME_FRAMEWORK:-$INPUT_ROOT/Frameworks/HermesRuntime.framework}
 SOURCE_RUNTIME=${HERMES_RUNTIME_ARCHIVE:-$INPUT_ROOT/hermesrt.zip}
 DEST_ROOT="$BLINK_ROOT/Resources"
 DEST_FRAMEWORK="$BLINK_ROOT/Frameworks/HermesRuntime.framework"
