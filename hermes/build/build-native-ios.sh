@@ -55,8 +55,10 @@ fi
 
 if [ "$HOST_OS" = Darwin ]; then
   LINKER_FLAGS=""
-  LLVM_AR=$(xcrun --find llvm-ar)
-  LLVM_RANLIB=$(xcrun --find llvm-ranlib)
+  # Xcode ships Apple's cctools ar/ranlib for SDK builds.  Recent Xcode
+  # versions do not expose llvm-ar/llvm-ranlib through the default toolchain.
+  LLVM_AR=$(xcrun --sdk iphoneos --find ar)
+  LLVM_RANLIB=$(xcrun --sdk iphoneos --find ranlib)
 else
   LINKER_FLAGS="-fuse-ld=lld"
   LLVM_AR=llvm-ar
@@ -117,6 +119,7 @@ if [ ! -f "$TARGET_STAMP" ] || [ "$(cat "$TARGET_STAMP")" != "$CPYTHON_REF" ]; t
 else
   echo "Reusing cached CPython target objects for $CPYTHON_REF"
 fi
+BUILD_TRIPLE=$(cd "$TARGET_ROOT" && ./config.guess)
 cat > "$TARGET_ROOT/ios_compat.c" <<'EOF'
 #include <stdint.h>
 int __isPlatformVersionAtLeast(uint32_t platform, uint32_t major, uint32_t minor, uint32_t subminor) {
@@ -137,7 +140,7 @@ clang --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT" \
     py_cv_module__decimal=n/a \
     py_cv_module__elementtree=n/a py_cv_module__uuid=n/a \
     ./configure --host=arm64-apple-ios${DEPLOYMENT_TARGET} \
-    --build=x86_64-pc-linux-gnu --with-build-python="$HOST_PYTHON" \
+    --build="$BUILD_TRIPLE" --with-build-python="$HOST_PYTHON" \
     --without-ensurepip --disable-test-modules --disable-ipv6 --with-lto=no \
     --enable-framework)
 python3 - "$TARGET_ROOT/Makefile" <<'PY'
@@ -215,8 +218,8 @@ PY
   printf '%s\n' Modules/_contextvarsmodule.o >> native-module-objects.filtered && \
   sort -u native-module-objects.filtered > native-module-objects.txt)
 (cd "$TARGET_ROOT" && \
-  llvm-ar rcs libpython3.13.a $(cat native-module-objects.txt) && \
-  llvm-ranlib libpython3.13.a)
+  "$LLVM_AR" rcs libpython3.13.a $(cat native-module-objects.txt) && \
+  "$LLVM_RANLIB" libpython3.13.a)
 
 mkdir -p "$BUILD_ROOT/artifact"
 CC=arm64-apple-ios-clang PATH="$TOOLBIN:$PATH" \
