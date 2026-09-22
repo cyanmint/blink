@@ -35,7 +35,7 @@
 
 @class TermView;
 @class TermDevice;
-@class TermInput;
+@protocol TermInput;
 @class TermUIState;
 @class LayoutConstraintManager;
 
@@ -45,6 +45,9 @@ extern NSString * TermViewBrowserReadyNotificationKey;
 @protocol TermViewDeviceProtocol
 
 @property BOOL rawMode;
+
+- (void)attachInput:(UIView<TermInput> *)termInput;
+- (void)focus;
 
 - (void)viewIsReady;
 - (void)viewFontSizeChanged:(NSInteger)size;
