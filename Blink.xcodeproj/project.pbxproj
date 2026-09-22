@@ -5343,6 +5343,10 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/Frameworks",
 				);
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Frameworks",
+				);
 				MARKETING_VERSION = 18.7.0;
 				NEW_SETTING = "";
 				OTHER_CFLAGS = "$(BLINK_OTHER_CFLAGS)";
@@ -5391,6 +5395,10 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Frameworks",
+				);
+				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/Frameworks",
 				);

@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       run_tests:
-        description: Run Blink tests before archiving
+        description: Run HermesLink tests before archiving
         required: false
         type: boolean
         default: false
@@ -14,7 +14,7 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - name: Check out Blink
+      - name: Check out HermesLink
         uses: actions/checkout@v4
         with:
           submodules: true
@@ -69,7 +69,7 @@ jobs:
       - name: Prepare Xcode configuration
         run: cp template_setup.xcconfig developer_setup.xcconfig
 
-      - name: Run Blink tests
+      - name: Run HermesLink tests
         if: ${{ inputs.run_tests == true }}
         continue-on-error: true
         run: |
@@ -87,17 +87,17 @@ jobs:
             -scheme Blink \
             -sdk iphoneos \
             -configuration Debug \
-            -archivePath "$RUNNER_TEMP/Blink.xcarchive" \
+            -archivePath "$RUNNER_TEMP/HermesLink.xcarchive" \
             IPHONEOS_DEPLOYMENT_TARGET='16.1' \
             CODE_SIGN_IDENTITY='' \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            ONLY_ACTIVE_ARCH=NO | tee "$RUNNER_TEMP/blink-archive.log" | xcpretty
+            ONLY_ACTIVE_ARCH=NO | tee "$RUNNER_TEMP/hermeslink-archive.log" | xcpretty
 
       - name: Package IPA
         run: |
           set -euo pipefail
-          app="$(find "$RUNNER_TEMP/Blink.xcarchive/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          app="$(find "$RUNNER_TEMP/HermesLink.xcarchive/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
           test -n "$app"
           test -x "$app/Frameworks/HermesRuntime.framework/HermesRuntime"
           # TrollStore can install an unsigned app, but iOS still requires
@@ -128,6 +128,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: blink-archive-log
-          path: ${{ runner.temp }}/blink-archive.log
+          name: hermeslink-archive-log
+          path: ${{ runner.temp }}/hermeslink-archive.log
           if-no-files-found: ignore
