@@ -49,6 +49,12 @@ void HermesLinkAppendLog(const char *message) {
 }
 
 __attribute__((visibility("default")))
+int HermesLinkOutputFD(int error_stream) {
+  FILE *stream = error_stream ? thread_stderr : thread_stdout;
+  return stream == NULL ? -1 : fileno(stream);
+}
+
+__attribute__((visibility("default")))
 int hermes_main(int argc, char *argv[]) {
   HermesLinkAppendLog("hermes command entered");
   // --version is a local metadata query. Do not start the embedded Python

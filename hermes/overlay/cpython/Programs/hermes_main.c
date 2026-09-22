@@ -7,11 +7,16 @@
 
 static void report_runtime_message(const char *message) {
     typedef void (*append_log_fn)(const char *);
+    typedef int (*output_fd_fn)(int);
     append_log_fn append_log = (append_log_fn)dlsym(RTLD_DEFAULT, "HermesLinkAppendLog");
+    output_fd_fn output_fd = (output_fd_fn)dlsym(RTLD_DEFAULT, "HermesLinkOutputFD");
     if (append_log != NULL) {
         append_log(message);
     }
-    dprintf(STDERR_FILENO, "%s\n", message);
+    int fd = output_fd == NULL ? STDERR_FILENO : output_fd(1);
+    if (fd >= 0) {
+        dprintf(fd, "%s\n", message);
+    }
 }
 
 static char **build_argv(int argc, char **argv) {
@@ -68,10 +73,17 @@ static void flush_python_stdio(void) {
 }
 
 static int configure_python_stdio(void) {
-    int result = PyRun_SimpleString(
+    typedef int (*output_fd_fn)(int);
+    output_fd_fn output_fd = (output_fd_fn)dlsym(RTLD_DEFAULT, "HermesLinkOutputFD");
+    int stdout_fd = output_fd == NULL ? STDOUT_FILENO : output_fd(0);
+    int stderr_fd = output_fd == NULL ? STDERR_FILENO : output_fd(1);
+    char script[512];
+    snprintf(script, sizeof(script),
         "import io, os, sys\n"
-        "sys.stdout = io.TextIOWrapper(os.fdopen(os.dup(1), 'wb'), encoding='utf-8', errors='backslashreplace', line_buffering=True)\n"
-        "sys.stderr = io.TextIOWrapper(os.fdopen(os.dup(2), 'wb'), encoding='utf-8', errors='backslashreplace', line_buffering=True)\n");
+        "sys.stdout = io.TextIOWrapper(os.fdopen(os.dup(%d), 'wb'), encoding='utf-8', errors='backslashreplace', line_buffering=True)\n"
+        "sys.stderr = io.TextIOWrapper(os.fdopen(os.dup(%d), 'wb'), encoding='utf-8', errors='backslashreplace', line_buffering=True)\n",
+        stdout_fd, stderr_fd);
+    int result = PyRun_SimpleString(script);
     if (result != 0) {
         PyErr_Clear();
         return -1;
