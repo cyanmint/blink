@@ -69,7 +69,7 @@ class SpaceController: UIViewController {
   private var _snippetsVC: SnippetsViewController? = nil
   private var _blinkMenu: BlinkMenu? = nil
   private var _bottomTapAreaView = UIView()
-  private var _termSettingsEdgePan: UIScreenEdgePanGestureRecognizer!
+  private var _termSettingsSwipe: UISwipeGestureRecognizer!
 
   // Snips Input Mode tracking
   private var _isSnipsInputModeActive: Bool = false {
@@ -279,10 +279,10 @@ class SpaceController: UIViewController {
     doubleTap.numberOfTouchesRequired = 1
     _bottomTapAreaView.addGestureRecognizer(doubleTap)
 
-    _termSettingsEdgePan = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(_openTermSettings(_:)))
-    _termSettingsEdgePan.edges = .top
-    _termSettingsEdgePan.cancelsTouchesInView = false
-    view.addGestureRecognizer(_termSettingsEdgePan)
+    _termSettingsSwipe = UISwipeGestureRecognizer(target: self, action: #selector(_openTermSettings(_:)))
+    _termSettingsSwipe.direction = .up
+    _termSettingsSwipe.numberOfTouchesRequired = 3
+    view.addGestureRecognizer(_termSettingsSwipe)
     
     NotificationCenter.default.addObserver(self, selector: #selector(_geoTrackStateChanged), name: NSNotification.Name.BLGeoTrackStateChange, object: nil)
     
@@ -1163,8 +1163,8 @@ extension SpaceController {
       ._toggleQuickActionActionWith(receiver: self)
   }
 
-  @objc private func _openTermSettings(_ recognizer: UIScreenEdgePanGestureRecognizer) {
-    guard recognizer.state == .ended, presentedViewController == nil else { return }
+  @objc private func _openTermSettings(_ recognizer: UISwipeGestureRecognizer) {
+    guard presentedViewController == nil else { return }
     HermesLinkAppendLog("opening Term Settings")
     let controller = UIHostingController(rootView: TermSettingsView())
     controller.modalPresentationStyle = .pageSheet

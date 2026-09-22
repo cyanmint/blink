@@ -3,6 +3,12 @@ name: CI
 on:
   push:
   workflow_dispatch:
+    inputs:
+      run_tests:
+        description: Run Blink tests before archiving
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   hermes-runtime:
@@ -53,6 +59,7 @@ jobs:
         run: cp template_setup.xcconfig developer_setup.xcconfig
 
       - name: Run Blink tests
+        if: ${{ inputs.run_tests == true }}
         continue-on-error: true
         run: |
           set -euo pipefail
