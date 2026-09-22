@@ -37,6 +37,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CACHE_TAG: native-ios-build-cache
           CACHE_NAME: native-ios-build-cache.tar.gz
+          BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
         run: |
           set -euo pipefail
           mkdir -p "$(dirname "$BUILD_ROOT")"
@@ -85,6 +86,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CACHE_TAG: native-ios-build-cache
           CACHE_NAME: native-ios-build-cache.tar.gz
+          BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
         run: |
           set -euo pipefail
           cache="$RUNNER_TEMP/$CACHE_NAME"
