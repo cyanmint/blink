@@ -4,6 +4,20 @@
 #include <unistd.h>
 #include <limits.h>
 
+#include "ios_error.h"
+
+static void report_runtime_message(const char *message) {
+    if (thread_stderr != NULL) {
+        ios_fputs(message, thread_stderr);
+        ios_fputs("\n", thread_stderr);
+        ios_fflush(thread_stderr);
+    } else {
+        fputs(message, stderr);
+        fputs("\n", stderr);
+        fflush(stderr);
+    }
+}
+
 static char **build_argv(int argc, char **argv) {
     char **result = calloc((size_t)argc + 1, sizeof(*result));
     if (result == NULL) {
@@ -16,8 +30,10 @@ static char **build_argv(int argc, char **argv) {
 }
 
 static int report_python_error(const char *stage) {
-    fprintf(stderr, "hermes: %s failed (error=%d)\n", stage,
-            PyErr_Occurred() != NULL);
+    char line[1024];
+    snprintf(line, sizeof(line), "hermes: %s failed (error=%d)", stage,
+             PyErr_Occurred() != NULL);
+    report_runtime_message(line);
     if (PyErr_Occurred()) {
         PyObject *type = NULL;
         PyObject *value = NULL;
@@ -26,19 +42,15 @@ static int report_python_error(const char *stage) {
         PyErr_NormalizeException(&type, &value, &traceback);
         PyObject *text = value == NULL ? NULL : PyObject_Str(value);
         const char *message = text == NULL ? "<unprintable>" : PyUnicode_AsUTF8(text);
-        fprintf(stderr, "hermes: python error: %s\n",
-                message == NULL ? "<non-utf8>" : message);
-        if (type != NULL || value != NULL || traceback != NULL) {
-            PyErr_Restore(type, value, traceback);
-            type = value = traceback = NULL;
-            PyErr_Print();
-        }
+        snprintf(line, sizeof(line), "hermes: python error: %s",
+                 message == NULL ? "<non-utf8>" : message);
+        report_runtime_message(line);
         Py_XDECREF(text);
         Py_XDECREF(type);
         Py_XDECREF(value);
         Py_XDECREF(traceback);
+        PyErr_Clear();
     }
-    fflush(stderr);
     return 1;
 }
 
@@ -86,7 +98,7 @@ int hermes_runtime_main(int argc, char **argv) {
     if (runtime_root == NULL || runtime_root[0] == '\0') runtime_root = ".";
     if (snprintf(runtime_path, sizeof(runtime_path), "%s/hermesrt.zip", runtime_root)
             >= (int)sizeof(runtime_path)) {
-        fputs("hermes: runtime path is too long\n", stderr);
+        report_runtime_message("hermes: runtime path is too long");
         return 70;
     }
     for (int i = 1; i + 1 < argc; ++i) {
@@ -103,7 +115,7 @@ int hermes_runtime_main(int argc, char **argv) {
     }
     char **python_argv = build_argv(argc, argv);
     if (python_argv == NULL) {
-        fputs("hermes: unable to allocate argument vector\n", stderr);
+        report_runtime_message("hermes: unable to allocate argument vector");
         return 70;
     }
 
@@ -132,7 +144,7 @@ int hermes_runtime_main(int argc, char **argv) {
     }
     wchar_t *runtime_zip = Py_DecodeLocale(runtime_path, NULL);
     if (runtime_zip == NULL) {
-        fputs("hermes: unable to decode runtime path\n", stderr);
+        report_runtime_message("hermes: unable to decode runtime path");
         PyConfig_Clear(&config);
         free(python_argv);
         return 70;
@@ -151,14 +163,14 @@ int hermes_runtime_main(int argc, char **argv) {
         char path[PATH_MAX];
         if (snprintf(path, sizeof(path), "%s%s", runtime_path,
                      runtime_suffixes[i]) >= (int)sizeof(path)) {
-            fputs("hermes: runtime path is too long\n", stderr);
+            report_runtime_message("hermes: runtime path is too long");
             PyConfig_Clear(&config);
             free(python_argv);
             return 70;
         }
         wchar_t *wide_path = Py_DecodeLocale(path, NULL);
         if (wide_path == NULL) {
-            fputs("hermes: unable to decode runtime path\n", stderr);
+            report_runtime_message("hermes: unable to decode runtime path");
             PyConfig_Clear(&config);
             free(python_argv);
             return 70;
