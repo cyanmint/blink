@@ -55,8 +55,12 @@ fi
 
 if [ "$HOST_OS" = Darwin ]; then
   LINKER_FLAGS=""
+  LLVM_AR=$(xcrun --find llvm-ar)
+  LLVM_RANLIB=$(xcrun --find llvm-ranlib)
 else
   LINKER_FLAGS="-fuse-ld=lld"
+  LLVM_AR=llvm-ar
+  LLVM_RANLIB=llvm-ranlib
 fi
 cat > "$TOOLBIN/arm64-apple-ios-clang" <<EOF
 #!/bin/sh
@@ -72,12 +76,14 @@ exec clang -E --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT"
 EOF
 cat > "$TOOLBIN/arm64-apple-ios-ar" <<'EOF'
 #!/bin/sh
-exec llvm-ar "$@"
+exec __LLVM_AR__ "$@"
 EOF
 cat > "$TOOLBIN/arm64-apple-ios-ranlib" <<'EOF'
 #!/bin/sh
-exec llvm-ranlib "$@"
+exec __LLVM_RANLIB__ "$@"
 EOF
+sed -i.bak "s#__LLVM_AR__#$LLVM_AR#; s#__LLVM_RANLIB__#$LLVM_RANLIB#" \
+  "$TOOLBIN/arm64-apple-ios-ar" "$TOOLBIN/arm64-apple-ios-ranlib"
 chmod +x "$TOOLBIN"/*
 
 if [ ! -d "$OPENSSL_ROOT/.git" ]; then
