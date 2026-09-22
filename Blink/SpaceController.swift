@@ -857,13 +857,19 @@ extension SpaceController {
     HermesLinkAppendLog("opening Hermes WebUI")
     let url = "http://127.0.0.1:\(port)"
     if launchServer {
+      // Keep the server in the terminal that owns it.  Do not background or
+      // silence it: this is the diagnostic shell for the automatically opened
+      // WebUI and can be toggled between Shell and Web by TermView.
       _newShellAction(
-        command: "hermes webui --host 127.0.0.1 --port \(port) >/dev/null 2>&1 &",
+        command: "hermes webui --host 127.0.0.1 --port \(port)",
         animated: false
       )
+      let webUITerm = currentTerm()
       // Give the embedded Python runtime time to bind before WebKit loads it.
       DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-        self?._newShellAction(command: "browse \(url)", animated: true)
+        guard let webUITerm,
+              let webURL = URL(string: url) else { return }
+        webUITerm.termView.addBrowserWebView(webURL, agent: "", injectUIO: false)
       }
     } else {
       _newShellAction(command: "browse \(url)", animated: true)
