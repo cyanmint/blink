@@ -224,6 +224,17 @@
     _currentCmd = cmdline;
 
     _cmdStream = [_device.stream duplicate];
+    // Use the same per-terminal session boundary as a-Shell.  This is
+    // required by the current ios_system shell implementation for pipelines,
+    // redirections, and background commands to keep their cwd, environment,
+    // and thread-local streams isolated from other Blink terminals.
+    ios_switchSession(_sessionUUID.UTF8String);
+    ios_setContext((__bridge void *)self);
+    setenv("COLUMNS", [[NSString stringWithFormat:@"%d", self.device.cols] UTF8String], 1);
+    setenv("LINES", [[NSString stringWithFormat:@"%d", self.device.rows] UTF8String], 1);
+    thread_stdin = nil;
+    thread_stdout = nil;
+    thread_stderr = nil;
     ios_setStreams(_cmdStream.in, _cmdStream.out, _cmdStream.out);
     // ios_system provides a get command that returns a "tty" instead of an open.  We can control it here.
     FILE* tty = [_cmdStream openTTY];

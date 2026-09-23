@@ -26,10 +26,19 @@ upstream files are not relabeled as AI-generated work.
 | a-Shell submodule `cpython` | Source provenance for the Python runtime family | Native iOS build now consumes pinned commit `0c3aa6418f2f8d874e1be62e45226af002bbcc8d` | CPython PSF license applies; not a-Shell-authored code |
 | a-Shell submodule `SwiftTerm` | Terminal integration reference | Not copied | SwiftTerm license applies if code is later imported |
 
-The current HermesLink bridge uses the already-linked Blink `ios_system`
+The current HermesLink shell uses the upstream a-Shell `ios_system` source
 framework, rather than copying a-Shell application files. This avoids claiming
 that the a-Shell app delegate or command implementation is original HermesLink
-code while making Python shell calls reach the same iOS command interpreter.
+implementation while making Blink's existing terminal calls reach the same iOS
+command interpreter. The terminal view, gestures, keyboard handling, smart
+keys, and Blink session UI remain unchanged.
+
+The pinned `ios_system` revision is `cb41911b8cb0f699649f55b3886c045e7d78eb8c`
+(a-Shell's v3.0.3 source line). Its shell parser provides pipelines (`|`,
+`|&`), redirection, and command chaining (`&&`/`||`) while the existing Blink
+`TermDevice` remains the terminal front end. The upstream shell also retains
+its background-command dispatch table; a general shell `&` operator still
+requires a separate command-parser change and is not claimed as complete here.
 
 ## HermesLink-created glue
 
