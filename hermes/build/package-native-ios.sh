@@ -7,13 +7,15 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TARGET_ROOT=${1:?target CPython build directory}
 OUTPUT_FRAMEWORK=${2:?output framework directory}
 BUILD_ROOT=$(dirname "$OUTPUT_FRAMEWORK")
-HOST_PYTHON=${HOST_PYTHON:-$(dirname "$TARGET_ROOT")/host-python/bin/python3.13}
+PYTHON_VERSION=${PYTHON_VERSION:-3.11}
+PYTHON_LIBRARY="libpython${PYTHON_VERSION}.a"
+HOST_PYTHON=${HOST_PYTHON:-$(dirname "$TARGET_ROOT")/host-python/bin/python${PYTHON_VERSION}}
 ARCHIVE="$BUILD_ROOT/hermesrt.zip"
 OPENSSL_INSTALL=${OPENSSL_INSTALL:-$BUILD_ROOT/openssl-install}
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
-[ -f "$TARGET_ROOT/libpython3.13.a" ] || { echo "missing target libpython3.13.a" >&2; exit 2; }
+[ -f "$TARGET_ROOT/$PYTHON_LIBRARY" ] || { echo "missing target $PYTHON_LIBRARY" >&2; exit 2; }
 [ -d "$TARGET_ROOT/Lib/encodings" ] || { echo "missing CPython standard library" >&2; exit 2; }
 HERMES_SOURCE=${HERMES_SOURCE:-$ROOT/build/external/hermes-agent}
 WEBUI_SOURCE=${WEBUI_SOURCE:-$ROOT/build/external/hermes-webui}
@@ -33,7 +35,7 @@ cp "$ROOT/overlay/hermes/agent/legacy_responses.py" "$STAGE/hermes/agent/legacy_
 VENDOR_ROOT=${HERMES_VENDOR:-$(dirname "$BUILD_ROOT")/vendor}
 if [ "${HERMES_REFRESH_VENDOR:-1}" = "1" ]; then
   command -v uv >/dev/null 2>&1 || { echo "uv is required to vendor pure-Python dependencies" >&2; exit 2; }
-  HOST_PYTHON=${HOST_PYTHON:-$(dirname "$TARGET_ROOT")/host-python/bin/python3.13}
+  HOST_PYTHON=${HOST_PYTHON:-$(dirname "$TARGET_ROOT")/host-python/bin/python${PYTHON_VERSION}}
   rm -rf "$VENDOR_ROOT"
   mkdir -p "$VENDOR_ROOT"
   uv pip install --target "$VENDOR_ROOT" --python "$HOST_PYTHON" \
@@ -97,7 +99,7 @@ CC=${CC:-arm64-apple-ios-clang}
 "$CC" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" -I"$TARGET_ROOT" -I"$ROOT/../Blink" \
   -c "$ROOT/overlay/cpython/Programs/hermes_main.c" -o "$BUILD_ROOT/hermes_main.o"
 "$CC" -mios-version-min="${IPHONEOS_DEPLOYMENT_TARGET:-13.0}" \
--Wl,-headerpad_max_install_names -Wl,-x -Wl,-no_function_starts -Wl,-no_data_in_code_info -Wl,-all_load "$TARGET_ROOT/libpython3.13.a" -Wl,-force_load,"$TARGET_ROOT/Modules/_hacl/libHacl_Hash_SHA2.a" -Wl,-force_load,"$TARGET_ROOT/Modules/expat/libexpat.a" "$BUILD_ROOT/hermes_main.o" \
+-Wl,-headerpad_max_install_names -Wl,-x -Wl,-no_function_starts -Wl,-no_data_in_code_info -Wl,-all_load "$TARGET_ROOT/$PYTHON_LIBRARY" -Wl,-force_load,"$TARGET_ROOT/Modules/_hacl/libHacl_Hash_SHA2.a" -Wl,-force_load,"$TARGET_ROOT/Modules/expat/libexpat.a" "$BUILD_ROOT/hermes_main.o" \
   -Wl,-rpath,@loader_path -framework CoreFoundation -ldl -lpthread -lm -lz -lsqlite3 \
   -L"$OPENSSL_INSTALL/lib" -lssl -lcrypto "$TARGET_ROOT/ios_compat.o" \
   -dynamiclib -install_name "@rpath/HermesRuntime.framework/HermesRuntime" \

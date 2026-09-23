@@ -23,7 +23,7 @@ upstream files are not relabeled as AI-generated work.
 | `a-Shell/ExtraCommands.swift` `wasm`/`wasm3` command registration | Reference for WASM command boundary | Interface adopted; source not copied | BSD 3-Clause and dependency notices apply |
 | `a-Shell/Resources/bin/python3` and `Resources/bin/python` | Reference to a-Shell's native Python command contract | Runtime not copied yet | Must be rebuilt from the pinned upstream/submodule sources before delivery |
 | `a-Shell/Resources/bin/wasm`, `wasm3`, `wasmkit` | Reference to a-Shell WASM/WASI command names | Binaries not copied | Must retain their individual upstream notices |
-| a-Shell submodule `cpython` | Source provenance for the Python runtime family | Source remains external during build | CPython PSF license applies; not a-Shell-authored code |
+| a-Shell submodule `cpython` | Source provenance for the Python runtime family | Native iOS build now consumes pinned commit `0c3aa6418f2f8d874e1be62e45226af002bbcc8d` | CPython PSF license applies; not a-Shell-authored code |
 | a-Shell submodule `SwiftTerm` | Terminal integration reference | Not copied | SwiftTerm license applies if code is later imported |
 
 The current HermesLink bridge uses the already-linked Blink `ios_system`
@@ -43,8 +43,10 @@ code while making Python shell calls reach the same iOS command interpreter.
 - `hermes/build/package-hermesrt-linux.sh`: packages a pure-Python runtime
   archive on Linux from the pinned a-Shell CPython standard library; it does
   not compile or include native Python objects.
+- `hermes/build/package-native-ios.sh`: packages the native iOS runtime using
+  the pinned a-Shell CPython ABI and static library name (`libpython3.11.a`).
 
-These five files are HermesLink glue and carry the standard cyanmint coding
+These six files are HermesLink glue and carry the standard cyanmint coding
 agent header. They are separately listed in `AI-GENERATED-FILES.md`; the
 upstream a-Shell material above is not covered by that statement.
 
@@ -59,8 +61,13 @@ HermesLink does not yet carry the corresponding framework.
 
 ## Delivery boundary
 
-This first integration step makes the Python `os.system()` path call the iOS
-shell. It does not yet claim that a-Shell's Python or WasmKit binaries have
-been copied into the app. A complete a-Shell Python/WASM runtime delivery must
-add the exact binary/framework inputs, their checksums, and all applicable
-license notices before changing this status to delivered.
+The native build path now uses the pinned a-Shell CPython checkout instead of
+the stock CPython 3.13 source. This changes the source and ABI selection, but
+still requires successful macOS CI and device verification before it can be
+called delivered. The Python shell bridge remains HermesLink glue and does not
+replace a-Shell's licensed application sources.
+
+The WASM command mapping is still only an entry point. The pinned checkout in
+this workspace contains zero-length `wasmkit` placeholders, so no executable
+WasmKit payload is copied or claimed as delivered. A complete WASM delivery
+must add the exact upstream binary/framework inputs, checksums, and notices.

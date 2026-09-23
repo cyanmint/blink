@@ -17,12 +17,15 @@ else
   SDK_ROOT=$BUILD_ROOT/sdks/iPhoneOS${SDK_VERSION}.sdk
 fi
 if [ -z "${HOST_PYTHON:-}" ] && [ "$HOST_OS" = Darwin ]; then
-  HOST_PYTHON=$(command -v python3.13 || command -v python3 || true)
+  HOST_PYTHON=$(command -v python3.11 || command -v python3 || true)
 fi
-HOST_PYTHON=${HOST_PYTHON:-$BUILD_ROOT/host-python/bin/python3.13}
+PYTHON_VERSION=${PYTHON_VERSION:-3.11}
+PYTHON_LIBRARY="libpython${PYTHON_VERSION}.a"
+HOST_PYTHON=${HOST_PYTHON:-$BUILD_ROOT/host-python/bin/python${PYTHON_VERSION}}
 export HOST_PYTHON
-CPYTHON_REF=${CPYTHON_REF:-v3.13.9}
-CPYTHON_ROOT=${CPYTHON_ROOT:-$BUILD_ROOT/cpython}
+ASHELL_ROOT=${ASHELL_ROOT:-$BUILD_ROOT/a-shell}
+CPYTHON_ROOT=${CPYTHON_ROOT:-$ASHELL_ROOT/cpython}
+CPYTHON_REF=${CPYTHON_REF:-0c3aa6418f2f8d874e1be62e45226af002bbcc8d}
 OPENSSL_REF=${OPENSSL_REF:-openssl-3.3.2}
 OPENSSL_ROOT=${OPENSSL_ROOT:-$BUILD_ROOT/openssl}
 OPENSSL_INSTALL=${OPENSSL_INSTALL:-$BUILD_ROOT/openssl-install}
@@ -41,13 +44,15 @@ fi
 [ -d "$SDK_ROOT/usr/include" ] || { echo "missing iOS SDK: $SDK_ROOT" >&2; exit 3; }
 
 if [ ! -d "$CPYTHON_ROOT/.git" ]; then
-  git clone --filter=blob:none --depth=1 --branch "$CPYTHON_REF" https://github.com/python/cpython.git "$CPYTHON_ROOT"
+  bash "$ROOT/build/fetch-ashell.sh" "$ASHELL_ROOT"
 fi
 
 if [ ! -x "$HOST_PYTHON" ]; then
   HOST_ROOT=$BUILD_ROOT/host-cpython
-  if [ ! -d "$HOST_ROOT/.git" ]; then
-    git clone --filter=blob:none --depth=1 --branch "$CPYTHON_REF" https://github.com/python/cpython.git "$HOST_ROOT"
+  if [ ! -f "$HOST_ROOT/configure" ]; then
+    rm -rf "$HOST_ROOT"
+    mkdir -p "$HOST_ROOT"
+    git -C "$CPYTHON_ROOT" archive HEAD | tar -x -C "$HOST_ROOT"
     (cd "$HOST_ROOT" && env -u SDKROOT -u CC -u CFLAGS -u CPPFLAGS -u LDFLAGS \
       ./configure --prefix="$BUILD_ROOT/host-python" --without-ensurepip --disable-test-modules)
     (cd "$HOST_ROOT" && env -u SDKROOT -u CC -u CFLAGS -u CPPFLAGS -u LDFLAGS make -j"${JOBS:-16}")
@@ -173,7 +178,7 @@ objects = sorted(set(objects))
 pathlib.Path(pathlib.Path(makefile).parent / "native-module-objects.txt").write_text("\n".join(objects) + "\n")
 PY
 (cd "$TARGET_ROOT" && \
-  PATH="$TOOLBIN:/usr/bin:/bin" make -n -o Makefile libpython3.13.a > native-libpython-dryrun.txt)
+  PATH="$TOOLBIN:/usr/bin:/bin" make -n -o Makefile "$PYTHON_LIBRARY" > native-libpython-dryrun.txt)
 python3 - "$TARGET_ROOT/native-libpython-dryrun.txt" "$TARGET_ROOT/native-module-objects.txt" <<'PY'
 from pathlib import Path
 import shlex, sys
@@ -181,11 +186,11 @@ import re
 dryrun, output = map(Path, sys.argv[1:])
 objects = set()
 for line in dryrun.read_text(encoding="utf-8", errors="replace").splitlines():
-    if "libpython3.13.a" not in line or " rcs " not in f" {line} ":
+    if "$PYTHON_LIBRARY" not in line or " rcs " not in f" {line} ":
         continue
     tokens = shlex.split(line)
     try:
-        index = tokens.index("libpython3.13.a")
+        index = tokens.index("$PYTHON_LIBRARY")
     except ValueError:
         continue
     objects.update(token for token in tokens[index + 1:] if token.endswith(".o"))
@@ -265,8 +270,8 @@ PY
   printf '%s\n' native_modules.o >> native-module-objects.txt && \
   sort -u native-module-objects.txt -o native-module-objects.txt)
 (cd "$TARGET_ROOT" && \
-  "$LLVM_AR" rcs libpython3.13.a $(cat native-module-objects.txt) && \
-  "$LLVM_RANLIB" libpython3.13.a)
+  "$LLVM_AR" rcs "$PYTHON_LIBRARY" $(cat native-module-objects.txt) && \
+  "$LLVM_RANLIB" "$PYTHON_LIBRARY")
 
 mkdir -p "$BUILD_ROOT/artifact"
 CC=arm64-apple-ios-clang PATH="$TOOLBIN:$PATH" \
