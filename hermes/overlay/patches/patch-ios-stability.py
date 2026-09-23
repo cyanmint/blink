@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-import re
 from pathlib import Path
 
 
@@ -40,27 +39,6 @@ def patch_ios_terminal(path: Path) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
 
 
-def patch_ios_shell(path: Path) -> None:
-    text = path.read_text(encoding="utf-8")
-    marker = re.compile(
-        r"(?P<head>    def _run_bash\(self, cmd_string: str, \*, login: bool = False, timeout: int = 120,\n"
-        r"                  stdin_data: str \| None = None\) -> subprocess\.Popen:\n)"
-        r"        bash = _find_bash\(\)\n"
-    )
-    replacement = (
-        "\\g<head>"
-        "        if os.environ.get(\"HERMES_IOS_TERMINAL\") == \"1\":\n"
-        "            from hermes.ios_shell import IOSProcess\n"
-        "            return IOSProcess(cmd_string, cwd=self.cwd, stdin_data=stdin_data)\n"
-        "        bash = _find_bash()\n"
-    )
-    if "from hermes.ios_shell import IOSProcess" in text:
-        return
-    if not marker.search(text):
-        raise SystemExit(f"local shell runner anchor not found: {path}")
-    path.write_text(marker.sub(replacement, text, count=1), encoding="utf-8", newline="\n")
-
-
 def main() -> int:
     if len(sys.argv) != 2:
         raise SystemExit("usage: patch-ios-stability.py <staging-hermes-root>")
@@ -68,7 +46,6 @@ def main() -> int:
     patch_usage_pricing(root / "agent" / "usage_pricing.py")
     patch_process_title(root / "hermes_cli" / "main.py")
     patch_ios_terminal(root / "hermes_cli" / "main.py")
-    patch_ios_shell(root / "tools" / "environments" / "local.py")
     return 0
 
 

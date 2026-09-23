@@ -40,7 +40,7 @@ import Network
 
 
 // MARK: UIViewController
-class SpaceController: UIViewController {
+class SpaceController: UIViewController, UIGestureRecognizerDelegate {
   
   struct UIState: UserActivityCodable {
     var keys: [UUID] = []
@@ -69,8 +69,7 @@ class SpaceController: UIViewController {
   private var _snippetsVC: SnippetsViewController? = nil
   private var _blinkMenu: BlinkMenu? = nil
   private var _bottomTapAreaView = UIView()
-  private var _termSettingsSwipe: UISwipeGestureRecognizer!
-  private var _webUISwipe: UISwipeGestureRecognizer!
+  private var _threeFingerPan: UIPanGestureRecognizer!
 
   // Snips Input Mode tracking
   private var _isSnipsInputModeActive: Bool = false {
@@ -280,15 +279,16 @@ class SpaceController: UIViewController {
     doubleTap.numberOfTouchesRequired = 1
     _bottomTapAreaView.addGestureRecognizer(doubleTap)
 
-    _termSettingsSwipe = UISwipeGestureRecognizer(target: self, action: #selector(_openTermSettings))
-    _termSettingsSwipe.direction = .down
-    _termSettingsSwipe.numberOfTouchesRequired = 3
-    view.addGestureRecognizer(_termSettingsSwipe)
-
-    _webUISwipe = UISwipeGestureRecognizer(target: self, action: #selector(_openHermesWebUI))
-    _webUISwipe.direction = .up
-    _webUISwipe.numberOfTouchesRequired = 3
-    view.addGestureRecognizer(_webUISwipe)
+    // A pan recognizer is used instead of two UISwipeRecognizers. UISwipe can
+    // lose the gesture to the terminal/WebView scroll recognizers before it
+    // decides on a direction, which made the down gesture (and other gestures
+    // on an interactive terminal) disappear on iPadOS.
+    _threeFingerPan = UIPanGestureRecognizer(target: self, action: #selector(_handleThreeFingerPan(_:)))
+    _threeFingerPan.minimumNumberOfTouches = 3
+    _threeFingerPan.maximumNumberOfTouches = 3
+    _threeFingerPan.cancelsTouchesInView = false
+    _threeFingerPan.delegate = self
+    view.addGestureRecognizer(_threeFingerPan)
     
     NotificationCenter.default.addObserver(self, selector: #selector(_geoTrackStateChanged), name: NSNotification.Name.BLGeoTrackStateChange, object: nil)
     
@@ -802,15 +802,6 @@ extension SpaceController {
   private static var hermesWebUIStartInFlight = false
   private static var hermesWebUIWaiters: [(Int, Bool) -> Void] = []
 
-  private static var hermesWebUIHost: String {
-    UserDefaults.standard.string(forKey: "HermesLinkWebUIHost") == "0.0.0.0" ? "0.0.0.0" : "127.0.0.1"
-  }
-
-  private static var configuredWebUIPort: Int {
-    let port = UserDefaults.standard.integer(forKey: "HermesLinkWebUIPort")
-    return port > 0 && port <= 65535 ? port : hermesWebUIDefaultPort
-  }
-
   private static func portIsOccupied(_ port: Int, completion: @escaping (Bool) -> Void) {
     guard let endpointPort = NWEndpoint.Port(rawValue: UInt16(port)) else {
       completion(true)
@@ -870,13 +861,13 @@ extension SpaceController {
     if launchServer {
       // Keep the server in the terminal that owns it. Do not background or
       // silence it: this is the diagnostic shell for the WebUI.
-      webUITerm?.enqueueCommand("hermes webui --host \(Self.hermesWebUIHost) --port \(port)")
+      webUITerm?.enqueueCommand("hermes webui --host 127.0.0.1 --port \(port)")
     }
     if UserDefaults.standard.object(forKey: "HermesLinkOpenWebUIInForeground") == nil ||
        UserDefaults.standard.bool(forKey: "HermesLinkOpenWebUIInForeground") {
       DispatchQueue.main.asyncAfter(deadline: .now() + (launchServer ? 2.0 : 0.0)) {
         guard let webUITerm,
-              let webURL = URL(string: "http://127.0.0.1:\(port)") else { return }
+              let webURL = URL(string: "http://127.0.0.1:8787") else { return }
         webUITerm.termView.showBrowserWebView(webURL)
       }
     }
@@ -898,7 +889,7 @@ extension SpaceController {
       return
     }
 
-    Self.findHermesWebUIPort(Self.configuredWebUIPort) { port, shouldLaunch in
+    Self.findHermesWebUIPort(Self.hermesWebUIDefaultPort) { port, shouldLaunch in
       DispatchQueue.main.async {
         Self.hermesWebUIPort = port
         Self.hermesWebUIStartInFlight = false
@@ -911,20 +902,11 @@ extension SpaceController {
 
   @objc private func _openHermesWebUI() {
     guard let term = currentTerm(),
-          let url = URL(string: "http://127.0.0.1:\(Self.configuredWebUIPort)") else { return }
+          let url = URL(string: "http://127.0.0.1:8787") else { return }
     if Self.hermesWebUIPort == nil {
       startHermesWebUI()
     }
     term.termView.showBrowserWebView(url)
-  }
-
-  @objc private func _toggleHermesWebUI() {
-    guard let term = currentTerm() else { return }
-    if term.termView.browserView != nil {
-      term.termView.toggleBrowserWebView()
-    } else {
-      _openHermesWebUI()
-    }
   }
 
   @objc func newShellAction() {
@@ -1198,6 +1180,21 @@ extension SpaceController {
     showConfigAction()
   }
 
+  @objc private func _handleThreeFingerPan(_ recognizer: UIPanGestureRecognizer) {
+    guard recognizer.state == .ended else { return }
+    let translation = recognizer.translation(in: view)
+    guard abs(translation.y) > abs(translation.x), abs(translation.y) >= 40 else { return }
+    if translation.y < 0 {
+      _openTermSettings()
+    } else {
+      _openHermesWebUI()
+    }
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+    gestureRecognizer === _threeFingerPan || otherGestureRecognizer === _threeFingerPan
+  }
 
   @objc func toggleGeoTrack() {
     if GeoManager.shared().traking {

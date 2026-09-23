@@ -150,25 +150,13 @@ path = Path(__import__("sys").argv[1])
 text = path.read_text(encoding="utf-8")
 path.write_text(text.replace("Python.framework/Python", ""), encoding="utf-8", newline="\n")
 PY
-python3 - "$TARGET_ROOT/Modules/Setup.stdlib" "$TARGET_ROOT/Modules/Setup.local" "$TARGET_ROOT/Makefile" "$OPENSSL_INSTALL" <<'PY'
+python3 - "$TARGET_ROOT/Modules/Setup.stdlib" "$TARGET_ROOT/Modules/Setup.local" "$TARGET_ROOT/Makefile" <<'PY'
 import pathlib, sys
-source, target, makefile, openssl_install = sys.argv[1:]
+source, target, makefile = sys.argv[1:]
 lines = pathlib.Path(source).read_text().splitlines()
 for i, line in enumerate(lines):
     if line.strip() == "*shared*": lines[i] = "*static*"
     if line.startswith("_decimal "): lines[i] += " -IModules/_decimal/libmpdec Modules/_decimal/libmpdec/libmpdec.a"
-# These modules are intentionally not emitted by every cross-build configure
-# probe, but they are required by the bundled Hermes code.  Keep them static
-# and in the same archive as the rest of CPython instead of shipping .so files.
-existing = {line.split()[0] for line in lines if line.strip() and not line.lstrip().startswith("#")}
-required = [
-    ("_opcode", "_opcode Modules/_opcode.c"),
-    ("_ssl", f"_ssl Modules/_ssl.c -DOPENSSL_THREADS -I{openssl_install}/include"),
-    ("_hashlib", f"_hashlib Modules/_hashopenssl.c -DOPENSSL_THREADS -I{openssl_install}/include"),
-]
-for name, line in required:
-    if name not in existing:
-        lines.append(line)
 pathlib.Path(target).write_text("\n".join(lines) + "\n")
 objects = []
 for line in lines:
@@ -177,7 +165,7 @@ for line in lines:
         continue
     for token in line.split()[1:]:
         if token.endswith(".c"):
-            source_path = token.removeprefix("$(srcdir)/") if token.startswith("$(srcdir)/") else token
+            source_path = token[2:] if token.startswith("$(srcdir)/") else token
             objects.append("Modules/" + source_path[:-2] + ".o")
 objects = sorted(set(objects))
 pathlib.Path(pathlib.Path(makefile).parent / "native-module-objects.txt").write_text("\n".join(objects) + "\n")
@@ -216,9 +204,7 @@ import re
 dryrun, output = map(Path, sys.argv[1:])
 objects = set()
 for line in dryrun.read_text(encoding="utf-8", errors="replace").splitlines():
-    # GNU ar and Apple's ar spell the archive operation differently. Only
-    # key on the output archive, not on one platform's flags.
-    if "libpython3.13.a" not in line:
+    if "libpython3.13.a" not in line or " rcs " not in f" {line} ":
         continue
     tokens = shlex.split(line)
     try:
@@ -258,42 +244,6 @@ PY
   printf '%s\n' Modules/arraymodule.o >> native-module-objects.filtered && \
   printf '%s\n' Modules/_randommodule.o >> native-module-objects.filtered && \
   sort -u native-module-objects.filtered > native-module-objects.txt)
-(cd "$TARGET_ROOT" && python3 - "$TARGET_ROOT/Modules/Setup.local" native-module-objects.txt "$BUILD_ROOT/native_modules.c" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-setup, objects_file, output = map(Path, sys.argv[1:])
-objects = set(objects_file.read_text(encoding="utf-8").splitlines())
-modules = []
-for raw in setup.read_text(encoding="utf-8").splitlines():
-    line = raw.split("#", 1)[0].strip()
-    if not line or line.startswith("*"):
-        continue
-    fields = line.split()
-    name = fields[0]
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
-        continue
-    source_objects = []
-    for token in fields[1:]:
-        if token.endswith(".c"):
-            source = token.removeprefix("$(srcdir)/") if token.startswith("$(srcdir)/") else token
-            source = source.removeprefix("./")
-            object_path = source[:-2] + ".o"
-            source_objects.append(object_path if object_path.startswith("Modules/") else "Modules/" + object_path)
-    if any(source in objects for source in source_objects):
-        modules.append(name)
-modules = sorted(set(modules))
-with output.open("w", encoding="utf-8", newline="\n") as stream:
-    stream.write("#include <Python.h>\n")
-    for name in modules:
-        stream.write(f"PyMODINIT_FUNC PyInit_{name}(void);\n")
-    stream.write("\nint hermes_register_native_modules(void) {\n")
-    for name in modules:
-        stream.write(f'    PyImport_AppendInittab("{name}", PyInit_{name});\n')
-    stream.write("    return 0;\n}\n")
-PY
-)
 (cd "$TARGET_ROOT" && \
   "$TOOLBIN/arm64-apple-ios-clang" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" \
     -c "$BUILD_ROOT/native_modules.c" -o native_modules.o && \
@@ -305,22 +255,11 @@ PY
 
 mkdir -p "$BUILD_ROOT/artifact"
 CC=arm64-apple-ios-clang PATH="$TOOLBIN:$PATH" \
-  HERMES_SKIP_RUNTIME_PACKAGE="${HERMES_SKIP_RUNTIME_PACKAGE:-0}" \
   bash "$ROOT/build/package-native-ios.sh" \
   "$TARGET_ROOT" "$BUILD_ROOT/artifact"
-if [ "${HERMES_SKIP_RUNTIME_PACKAGE:-0}" != "1" ]; then
-  rm -f "$ROOT/hermes"
-  cp "$BUILD_ROOT/hermesrt.zip" "$ROOT/hermesrt.zip"
-fi
-if [ "${HERMES_RUNTIME_PYTHON_ONLY:-0}" != "1" ]; then
-  mkdir -p "$ROOT/Frameworks"
-  rm -rf "$ROOT/Frameworks/HermesRuntime.framework"
-  cp -a "$BUILD_ROOT/artifact/HermesRuntime.framework" "$ROOT/Frameworks/HermesRuntime.framework"
-  if [ "${HERMES_SKIP_RUNTIME_PACKAGE:-0}" = "1" ]; then
-    file "$ROOT/Frameworks/HermesRuntime.framework/HermesRuntime"
-  else
-    file "$ROOT/Frameworks/HermesRuntime.framework/HermesRuntime" "$ROOT/hermesrt.zip"
-  fi
-else
-  file "$ROOT/hermesrt.zip"
-fi
+rm -f "$ROOT/hermes"
+mkdir -p "$ROOT/Frameworks"
+rm -rf "$ROOT/Frameworks/HermesRuntime.framework"
+cp -a "$BUILD_ROOT/artifact/HermesRuntime.framework" "$ROOT/Frameworks/HermesRuntime.framework"
+cp "$BUILD_ROOT/hermesrt.zip" "$ROOT/hermesrt.zip"
+file "$ROOT/Frameworks/HermesRuntime.framework/HermesRuntime" "$ROOT/hermesrt.zip"

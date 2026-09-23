@@ -11,28 +11,23 @@ OPENSSL_INSTALL=${OPENSSL_INSTALL:-$BUILD_ROOT/openssl-install}
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
-if [ "${HERMES_RUNTIME_PYTHON_ONLY:-0}" != "1" ]; then
-  [ -f "$TARGET_ROOT/libpython3.13.a" ] || { echo "missing target libpython3.13.a" >&2; exit 2; }
-fi
+[ -f "$TARGET_ROOT/libpython3.13.a" ] || { echo "missing target libpython3.13.a" >&2; exit 2; }
 [ -d "$TARGET_ROOT/Lib/encodings" ] || { echo "missing CPython standard library" >&2; exit 2; }
-if [ "${HERMES_SKIP_RUNTIME_PACKAGE:-0}" != "1" ]; then
 HERMES_SOURCE=${HERMES_SOURCE:-$ROOT/build/external/hermes-agent}
 WEBUI_SOURCE=${WEBUI_SOURCE:-$ROOT/build/external/hermes-webui}
 [ -f "$HERMES_SOURCE/hermes_cli/main.py" ] || bash "$ROOT/build/fetch-sources.sh"
 [ -f "$WEBUI_SOURCE/api/config.py" ] || { echo "missing Hermes WebUI source: $WEBUI_SOURCE" >&2; exit 2; }
 
 mkdir -p "$STAGE/hermes" "$STAGE/hermes-webui" "$STAGE/python/site-packages"
-cp -a "$ROOT/patches" "$STAGE/patches"
 cp -a "$TARGET_ROOT/Lib/." "$STAGE/python/"
 for package in acp_adapter agent cron gateway hermes_cli plugins providers tools tui_gateway hermes; do
   [ -d "$HERMES_SOURCE/$package" ] && cp -a "$HERMES_SOURCE/$package" "$STAGE/hermes/"
 done
 cp -a "$HERMES_SOURCE"/*.py "$STAGE/hermes/" 2>/dev/null || true
-"$HOST_PYTHON" "$ROOT/patches/patch-ios-stability.py" "$STAGE/hermes"
-"$HOST_PYTHON" "$ROOT/patches/patch-agent-sdk-compat.py" "$STAGE/hermes/agent/agent_init.py"
-cp "$ROOT/patches/legacy_responses.py" "$STAGE/hermes/agent/legacy_responses.py"
-cp "$ROOT/patches/doctor_state.py" "$STAGE/hermes/hermes_cli/doctor_state.py"
-cp "$ROOT/patches/upgrade.py" "$STAGE/hermes/hermes_cli/upgrade.py"
+cp -a "$ROOT/overlay/hermes/." "$STAGE/hermes/"
+"$HOST_PYTHON" "$ROOT/overlay/patches/patch-ios-stability.py" "$STAGE/hermes"
+"$HOST_PYTHON" "$ROOT/overlay/patches/patch-agent-sdk-compat.py" "$STAGE/hermes/agent/agent_init.py"
+cp "$ROOT/overlay/hermes/agent/legacy_responses.py" "$STAGE/hermes/agent/legacy_responses.py"
 VENDOR_ROOT=${HERMES_VENDOR:-$(dirname "$BUILD_ROOT")/vendor}
 if [ "${HERMES_REFRESH_VENDOR:-1}" = "1" ]; then
   command -v uv >/dev/null 2>&1 || { echo "uv is required to vendor pure-Python dependencies" >&2; exit 2; }
@@ -68,19 +63,17 @@ cp -a "$WEBUI_SOURCE/static" "$STAGE/hermes-webui/" 2>/dev/null || true
 for module in bootstrap.py server.py mcp_server.py; do
   [ -f "$WEBUI_SOURCE/$module" ] && cp "$WEBUI_SOURCE/$module" "$STAGE/hermes-webui/"
 done
-"$HOST_PYTHON" "$ROOT/patches/patch-webui-zip.py" "$STAGE/hermes-webui/api/config.py"
+"$HOST_PYTHON" "$ROOT/overlay/patches/patch-webui-zip.py" "$STAGE/hermes-webui/api/config.py"
 [ -d "$STAGE/hermes/plugins/browser" ] && : > "$STAGE/hermes/plugins/browser/__init__.py"
-cp "$ROOT/patches/sitecustomize.py" "$STAGE/python/sitecustomize.py"
-cp "$ROOT/patches/ios_shell.py" "$STAGE/hermes/ios_shell.py"
+cp "$ROOT/overlay/python/sitecustomize.py" "$STAGE/python/sitecustomize.py"
+cp -a "$ROOT/overlay" "$STAGE/overlay"
 # Native CPython modules are required to be statically linked into libpython.
 
 python3 - "$STAGE" "$ARCHIVE" <<'PY'
-import os, sys, time, zipfile
+import os, sys, zipfile
 root, output = sys.argv[1:]
-timestamp = os.environ.get("HERMES_RUNTIME_TIMESTAMP") or str(time.time_ns())
 with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_STORED) as z:
-    z.writestr('hermes-runtime.timestamp', timestamp + '\n')
-    seen = {'hermes-runtime.timestamp'}
+    seen = set()
     for directory, _, names in os.walk(root):
         for name in sorted(names):
             source = os.path.join(directory, name)
@@ -95,23 +88,18 @@ with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_STORED) as z:
             z.write(source, target, compress_type=zipfile.ZIP_STORED)
 PY
 
-if [ "${HERMES_RUNTIME_PYTHON_ONLY:-0}" = "1" ]; then
-  exit 0
-fi
-fi
-
 FRAMEWORK="$OUTPUT_FRAMEWORK/HermesRuntime.framework"
 mkdir -p "$FRAMEWORK/Headers" "$FRAMEWORK/Modules"
 
 CC=${CC:-arm64-apple-ios-clang}
 "$CC" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" -I"$TARGET_ROOT" -I"$ROOT/../Blink" \
-  -c "$ROOT/patches/hermes_main.c" -o "$BUILD_ROOT/hermes_main.o"
+  -c "$ROOT/overlay/cpython/Programs/hermes_main.c" -o "$BUILD_ROOT/hermes_main.o"
 "$CC" -mios-version-min="${IPHONEOS_DEPLOYMENT_TARGET:-13.0}" \
 -Wl,-headerpad_max_install_names -Wl,-x -Wl,-no_function_starts -Wl,-no_data_in_code_info -Wl,-all_load "$TARGET_ROOT/libpython3.13.a" -Wl,-force_load,"$TARGET_ROOT/Modules/_hacl/libHacl_Hash_SHA2.a" -Wl,-force_load,"$TARGET_ROOT/Modules/expat/libexpat.a" "$BUILD_ROOT/hermes_main.o" \
   -Wl,-rpath,@loader_path -framework CoreFoundation -ldl -lpthread -lm -lz -lsqlite3 \
   -L"$OPENSSL_INSTALL/lib" -lssl -lcrypto "$TARGET_ROOT/ios_compat.o" \
   -dynamiclib -install_name "@rpath/HermesRuntime.framework/HermesRuntime" \
-  -Wl,-exported_symbol,_hermes_runtime_main -Wl,-exported_symbol,_HermesLinkRunCommand \
+  -Wl,-exported_symbol,_hermes_runtime_main \
   -o "$FRAMEWORK/HermesRuntime"
 chmod 755 "$FRAMEWORK/HermesRuntime"
 cat > "$FRAMEWORK/Info.plist" <<'PLIST'
@@ -137,17 +125,13 @@ framework module HermesRuntime {
   export *
 }
 MODULEMAP
-if [ "${HERMES_SKIP_RUNTIME_PACKAGE:-0}" != "1" ]; then
 python3 - "$ARCHIVE" <<'PY'
 import sys, zipfile
 with zipfile.ZipFile(sys.argv[1]) as z:
     assert z.testzip() is None
     names = set(z.namelist())
-    assert 'hermes-runtime.timestamp' in names
-    assert z.read('hermes-runtime.timestamp').strip().isdigit()
     assert 'python/encodings/__init__.py' in names
     assert 'hermes/hermes_cli/main.py' in names
     assert not any(n.endswith(('.so', '.dylib', '.pyd', '.wasm')) for n in names)
 PY
 cp "$ARCHIVE" "$ROOT/hermesrt.zip"
-fi

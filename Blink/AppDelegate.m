@@ -115,8 +115,6 @@ void __setupProcessEnv(void) {
   setenv("SSH_HOME", homePath.UTF8String, 1);
   setenv("CURL_HOME", homePath.UTF8String, 1);
   setenv("HERMES_HOME", documentsPath.UTF8String, 1);
-  setenv("TERMINAL_CWD", documentsPath.UTF8String, 1);
-  setenv("PWD", documentsPath.UTF8String, 1);
   
   NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
   [nc addObserver:self

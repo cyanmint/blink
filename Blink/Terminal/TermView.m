@@ -293,17 +293,6 @@ static VSCodeInput *SharedBrowserView;
   [_browserView becomeFirstResponder];
 }
 
-- (void)toggleBrowserWebView
-{
-  if (!_browserView) {
-    return;
-  }
-  [_browserView removeFromSuperview];
-  _browserView = nil;
-  [_device attachInput:_webView];
-  [_webView becomeFirstResponder];
-}
-
 - (void)moveSharedBrowserWebViewIfPresent
 {
   if (SharedBrowserView && SharedBrowserView.superview != self) {

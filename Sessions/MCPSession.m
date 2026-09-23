@@ -97,7 +97,6 @@
                                                 attributes:nil
                                                      error:nil];
     setenv("HERMES_HOME", workspacePath.UTF8String, 1);
-    setenv("TERMINAL_CWD", workspacePath.UTF8String, 1);
     setenv("PWD", workspacePath.UTF8String, 1);
     chdir(workspacePath.UTF8String);
     [self updateAllowedPaths];

@@ -78,7 +78,7 @@ private class ProxyView: UIView {
       guard let proxy = self else { return }
       if controlledView.superview === proxy {
         controlledView.frame = proxy.bounds
-      } else if controlledView.superview === parent.superview {
+      } else if controlledView.superview === parent {
         controlledView.frame = frame
       }
     }
@@ -96,7 +96,7 @@ private class ProxyView: UIView {
     }
     if controlledView.superview === self {
       controlledView.frame = bounds
-    } else if controlledView.superview === parent.superview {
+    } else if controlledView.superview === parent {
       // The controlled terminal is temporarily reparented beside this proxy.
       // Use the proxy's frame in that container's coordinate space; using
       // parent.frame here uses the container's coordinates twice and can
@@ -173,7 +173,6 @@ class TermController: UIViewController {
   private var _sceneRole: UISceneSession.Role? = nil
   private var _bgColor: UIColor? = nil
   private var _fontSizeBeforeScaling: Int? = nil
-  private var _didResendInitialLayout = false
 
   @objc public var viewIsLoaded: Bool = false
 
@@ -290,10 +289,6 @@ class TermController: UIViewController {
 
   public override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    // The terminal view is reparented beside the proxy. Re-apply the proxy's
-    // final frame after the page controller has laid out its container; the
-    // first startup layout can otherwise leave hterm at its two-row size.
-    _proxyView.placeControlledView()
     let newSize = view.bounds.size
     let didChangeSize = _termView.termUIState.viewSize != newSize
     _termView.termUIState.viewSize = newSize
@@ -302,26 +297,7 @@ class TermController: UIViewController {
     // reports a temporary size (often two rows) and keeps using it until the
     // next resize. Re-send SIGWINCH after every real bounds change.
     if didChangeSize {
-      _didResendInitialLayout = false
       _session?.sigwinch()
-    }
-
-    // UIPageViewController can finish its container layout one run-loop turn
-    // after this callback. Re-apply the final bounds then as well; otherwise
-    // hterm can keep the initial two-row measurement until the next rotation.
-    DispatchQueue.main.async { [weak self] in
-      guard let self, self.viewIfLoaded?.window != nil else { return }
-      self._proxyView.placeControlledView()
-      let finalSize = self.view.bounds.size
-      guard finalSize.width > 0, finalSize.height > 0 else { return }
-      let sizeChanged = self._termView.termUIState.viewSize != finalSize
-      if sizeChanged {
-        self._termView.termUIState.viewSize = finalSize
-      }
-      if sizeChanged || !self._didResendInitialLayout {
-        self._didResendInitialLayout = true
-        self._session?.sigwinch()
-      }
     }
   }
 
