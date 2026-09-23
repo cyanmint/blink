@@ -204,7 +204,9 @@ import re
 dryrun, output = map(Path, sys.argv[1:])
 objects = set()
 for line in dryrun.read_text(encoding="utf-8", errors="replace").splitlines():
-    if "libpython3.13.a" not in line or " rcs " not in f" {line} ":
+    # GNU ar and Apple's ar spell the archive operation differently. Only
+    # key on the output archive, not on one platform's flags.
+    if "libpython3.13.a" not in line:
         continue
     tokens = shlex.split(line)
     try:
