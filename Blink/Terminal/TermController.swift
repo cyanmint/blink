@@ -75,7 +75,12 @@ private class ProxyView: UIView {
       else {
         return
       }
-      controlledView.frame = frame
+      guard let proxy = self else { return }
+      if controlledView.superview === proxy {
+        controlledView.frame = proxy.bounds
+      } else if controlledView.superview === parent {
+        controlledView.frame = frame
+      }
     }
 
     placeControlledView()
@@ -89,7 +94,15 @@ private class ProxyView: UIView {
     else {
       return
     }
-    controlledView.frame = parent.frame
+    if controlledView.superview === self {
+      controlledView.frame = bounds
+    } else if controlledView.superview === parent {
+      // The controlled terminal is temporarily reparented beside this proxy.
+      // Use the proxy's frame in that container's coordinate space; using
+      // parent.frame here uses the container's coordinates twice and can
+      // collapse the terminal to the two-row startup height.
+      controlledView.frame = frame
+    }
   }
 
   func removeControlledView() {

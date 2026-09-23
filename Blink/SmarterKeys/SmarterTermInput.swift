@@ -246,10 +246,10 @@ import Combine
       return
     }
     
-    if traitCollection.userInterfaceIdiom != .pad {
-//      needToReload = (_inputAccessoryView as? KBAccessoryView) == nil
-      _setupAccessoryView()
-    }
+    // The custom smart-key bar is also required above the iPad software
+    // keyboard. The old phone-only guard left iPad without an input accessory
+    // after the terminal was reattached.
+    _setupAccessoryView()
     
   }
   
