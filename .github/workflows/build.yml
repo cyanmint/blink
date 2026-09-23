@@ -115,7 +115,7 @@ jobs:
     name: Build and publish hermesrt.zip
     needs: decide
     if: needs.decide.outputs.run_runtime == 'true'
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Check out HermesLink
         uses: actions/checkout@v4
@@ -125,29 +125,18 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Cache Hermes compilation
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/hermes-build/native-ios
-          key: ${{ runner.os }}-hermes-ios-${{ hashFiles('hermes/build/*.sh', 'hermes/overlay/**', 'hermes/patches/**') }}
-          restore-keys: |
-            ${{ runner.os }}-hermes-ios-
-
-      - name: Build Hermes runtime
+      - name: Build pure-Python Hermes runtime
         env:
-          BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
-          IPHONEOS_DEPLOYMENT_TARGET: '16.1'
-          JOBS: 4
+          BUILD_ROOT: ${{ runner.temp }}/hermes-build/linux-runtime
         run: |
           set -euo pipefail
           chmod +x hermes/build/*.sh
-          bash hermes/build/build-native-ios.sh
+          bash hermes/build/package-hermesrt-linux.sh
 
       - name: Validate Hermes runtime
         run: |
           set -euo pipefail
           test -s hermes/hermesrt.zip
-          test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
           unzip -t hermes/hermesrt.zip
           python3 - hermes/hermesrt.zip <<'PY'
           import sys, zipfile
@@ -163,9 +152,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          ditto -c -k --sequesterRsrc --keepParent \
-            hermes/Frameworks/HermesRuntime.framework \
-            hermes/HermesRuntime.framework.zip
+
           # Recreate the mutable release instead of using --clobber. GitHub
           # can retain a stale asset id after an interrupted upload; gh then
           # receives 404 while trying to replace an asset that still appears
@@ -176,8 +163,7 @@ jobs:
           gh release create "$HERMES_RUNTIME_RELEASE_TAG" \
             --title 'Hermes runtime (latest)' \
             --notes 'Mutable runtime asset used by HermesLink app builds.'
-          gh release upload "$HERMES_RUNTIME_RELEASE_TAG" \
-            hermes/hermesrt.zip hermes/HermesRuntime.framework.zip
+          gh release upload "$HERMES_RUNTIME_RELEASE_TAG" hermes/hermesrt.zip
 
   build-app:
     name: Build HermesLink app
@@ -205,12 +191,7 @@ jobs:
             --output runtime-artifact/hermesrt.zip \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/${HERMES_RUNTIME_RELEASE_TAG}/hermesrt.zip"
           test -s runtime-artifact/hermesrt.zip
-          curl --fail --location --retry 5 --retry-all-errors \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header 'Accept: application/octet-stream' \
-            --output runtime-artifact/HermesRuntime.framework.zip \
-            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${HERMES_RUNTIME_RELEASE_TAG}/HermesRuntime.framework.zip"
-          test -s runtime-artifact/HermesRuntime.framework.zip
+
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -234,11 +215,19 @@ jobs:
       - name: Install runtime from release
         run: |
           set -euo pipefail
-          mkdir -p hermes/Frameworks
-          unzip -q runtime-artifact/HermesRuntime.framework.zip -d hermes/Frameworks
           cp runtime-artifact/hermesrt.zip hermes/hermesrt.zip
-          test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
           bash install_hermes_runtime.sh hermes
+
+      - name: Build native Hermes framework for the app
+        env:
+          BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
+          IPHONEOS_DEPLOYMENT_TARGET: '16.1'
+          JOBS: 4
+        run: |
+          set -euo pipefail
+          chmod +x hermes/build/*.sh
+          bash hermes/build/build-native-ios.sh
+          test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
 
       - name: Cache framework builds
         id: cache

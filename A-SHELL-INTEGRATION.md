@@ -34,14 +34,17 @@ code while making Python shell calls reach the same iOS command interpreter.
 ## HermesLink-created glue
 
 - `hermes/overlay/cpython/Modules/_hermeslink_shell.c`: static CPython module
-  exposing `system()` and `executable()` through weak-linked `ios_system` APIs.
+  resolving `system()` and `executable()` through the host's `ios_system` APIs.
 - `hermes/overlay/python/sitecustomize.py`: installs the bridge as
   `os.system` when the native module is present.
 - `hermes/build/build-native-ios.sh`: compiles and registers the static module.
 - `hermes/build/fetch-ashell.sh`: reproducibly fetches the pinned a-Shell
   checkout and its exact `cpython`/`SwiftTerm` submodule commits over HTTPS.
+- `hermes/build/package-hermesrt-linux.sh`: packages a pure-Python runtime
+  archive on Linux from the pinned a-Shell CPython standard library; it does
+  not compile or include native Python objects.
 
-These four files are HermesLink glue and carry the standard cyanmint coding
+These five files are HermesLink glue and carry the standard cyanmint coding
 agent header. They are separately listed in `AI-GENERATED-FILES.md`; the
 upstream a-Shell material above is not covered by that statement.
 

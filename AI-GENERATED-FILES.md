@@ -10,6 +10,7 @@ Under the project's stated attribution policy, AI-generated content has no copyr
 - `hermes/build/build-native-ios.sh`
 - `hermes/build/fetch-sources.sh`
 - `hermes/build/fetch-ashell.sh`
+- `hermes/build/package-hermesrt-linux.sh`
 - `hermes/build/package-native-ios.sh`
 - `hermes/overlay/cpython/Programs/hermes_main.c`
 - `hermes/overlay/cpython/Modules/_hermeslink_shell.c`
