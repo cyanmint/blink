@@ -44,7 +44,7 @@ code while making Python shell calls reach the same iOS command interpreter.
   archive on Linux from the pinned a-Shell CPython standard library; it does
   not compile or include native Python objects.
 - `hermes/build/package-native-ios.sh`: packages the native iOS runtime using
-  the pinned a-Shell CPython ABI and static library name (`libpython3.11.a`).
+  the pinned a-Shell CPython source and its configured static library ABI.
 
 These six files are HermesLink glue and carry the standard cyanmint coding
 agent header. They are separately listed in `AI-GENERATED-FILES.md`; the
@@ -62,10 +62,10 @@ HermesLink does not yet carry the corresponding framework.
 ## Delivery boundary
 
 The native build path now uses the pinned a-Shell CPython checkout instead of
-the stock CPython 3.13 source. This changes the source and ABI selection, but
-still requires successful macOS CI and device verification before it can be
-called delivered. The Python shell bridge remains HermesLink glue and does not
-replace a-Shell's licensed application sources.
+the stock CPython checkout. The source's configure-time ABI remains authoritative
+(the current pinned checkout requires CPython 3.13), and successful macOS CI
+and device verification are still required before delivery. The Python shell
+bridge remains HermesLink glue and does not replace a-Shell's licensed sources.
 
 The WASM command mapping is still only an entry point. The pinned checkout in
 this workspace contains zero-length `wasmkit` placeholders, so no executable

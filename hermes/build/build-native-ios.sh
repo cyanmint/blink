@@ -17,9 +17,9 @@ else
   SDK_ROOT=$BUILD_ROOT/sdks/iPhoneOS${SDK_VERSION}.sdk
 fi
 if [ -z "${HOST_PYTHON:-}" ] && [ "$HOST_OS" = Darwin ]; then
-  HOST_PYTHON=$(command -v python3.11 || command -v python3 || true)
+  HOST_PYTHON=$(command -v python3.13 || command -v python3 || true)
 fi
-PYTHON_VERSION=${PYTHON_VERSION:-3.11}
+PYTHON_VERSION=${PYTHON_VERSION:-3.13}
 PYTHON_LIBRARY="libpython${PYTHON_VERSION}.a"
 HOST_PYTHON=${HOST_PYTHON:-$BUILD_ROOT/host-python/bin/python${PYTHON_VERSION}}
 export HOST_PYTHON

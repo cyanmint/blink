@@ -217,6 +217,11 @@ jobs:
           set -euo pipefail
           cp runtime-artifact/hermesrt.zip hermes/hermesrt.zip
 
+      - name: Set up CPython build interpreter
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
       - name: Build native Hermes framework for the app
         env:
           BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
