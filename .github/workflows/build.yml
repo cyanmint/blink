@@ -30,6 +30,13 @@ permissions:
   actions: read
   contents: write
 
+# The runtime is published to one mutable release tag. Serialize runs so a
+# second push cannot delete/replace the asset while an app job is downloading
+# it from the previous run.
+concurrency:
+  group: hermeslink-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   HERMES_RUNTIME_RELEASE_TAG: hermesrt-latest
 
