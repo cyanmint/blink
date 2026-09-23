@@ -46,6 +46,12 @@ upstream a-Shell material above is not covered by that statement.
 `THIRD_PARTY/a-Shell-LICENSE` is a verbatim license notice copied from the
 pinned checkout and is retained as third-party legal material, not glue code.
 
+The command dictionaries now expose `python3` through the embedded Hermes
+runtime and expose a-Shell's `wasm3` command through the existing
+`shell.framework/shell` target used by Blink. `wasmkit` remains target-gated
+because the pinned a-Shell project only provides it for newer iOS versions and
+HermesLink does not yet carry the corresponding framework.
+
 ## Delivery boundary
 
 This first integration step makes the Python `os.system()` path call the iOS
