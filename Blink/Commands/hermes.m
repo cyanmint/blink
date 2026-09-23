@@ -36,8 +36,12 @@ static BOOL HermesReadRuntimeTimestamp(NSString *path, unsigned long long *times
     NSString *value = [[NSString alloc] initWithBytes:bytes + contentOffset
                                                 length:size
                                               encoding:NSUTF8StringEncoding];
-    unsigned long long parsed = value.unsignedLongLongValue;
-    if (parsed == 0 || value.length == 0) return NO;
+    if (value.length == 0) return NO;
+    const char *text = value.UTF8String;
+    if (text == NULL) return NO;
+    char *end = NULL;
+    unsigned long long parsed = strtoull(text, &end, 10);
+    if (end == text || *end != '\0' || parsed == 0) return NO;
     *timestamp = parsed;
     return YES;
   }
