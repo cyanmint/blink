@@ -157,7 +157,16 @@ jobs:
               assert not any(name.endswith(('.so', '.dylib', '.pyd', '.wasm')) for name in names)
           PY
 
+      - name: Upload hermesrt.zip for this workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermesrt-runtime-${{ github.run_id }}
+          path: hermes/hermesrt.zip
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Publish hermesrt.zip to fixed release
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -188,7 +197,15 @@ jobs:
         with:
           submodules: true
 
+      - name: Download hermesrt.zip from this workflow
+        if: needs.build-runtime.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: hermesrt-runtime-${{ github.run_id }}
+          path: runtime-artifact
+
       - name: Download hermesrt.zip from fixed release
+        if: needs.build-runtime.result == 'skipped'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
