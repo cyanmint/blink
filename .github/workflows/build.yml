@@ -171,8 +171,8 @@ jobs:
           fi
           gh release create "$HERMES_RUNTIME_RELEASE_TAG" \
             --title 'Hermes runtime (latest)' \
-            --notes 'Mutable runtime asset used by HermesLink app builds.' \
-            hermes/hermesrt.zip
+            --notes 'Mutable runtime asset used by HermesLink app builds.'
+          gh release upload "$HERMES_RUNTIME_RELEASE_TAG" hermes/hermesrt.zip
 
   build-app:
     name: Build HermesLink app
