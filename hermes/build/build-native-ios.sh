@@ -161,17 +161,17 @@ pid_t ios_currentPid(void) { return getpid(); }
 pid_t ios_fork(void) HERMES_WEAK;
 pid_t ios_fork(void) { errno = ENOSYS; return (pid_t)-1; }
 int ios_waitpid(pid_t pid) HERMES_WEAK;
-int ios_waitpid(pid_t pid) { return waitpid(pid, NULL, 0); }
+int ios_waitpid(pid_t pid) { (void)pid; errno = ENOSYS; return -1; }
 pid_t ios_full_waitpid(pid_t pid, int *status, int options) HERMES_WEAK;
-pid_t ios_full_waitpid(pid_t pid, int *status, int options) { return waitpid(pid, status, options); }
+pid_t ios_full_waitpid(pid_t pid, int *status, int options) { (void)pid; (void)status; (void)options; errno = ENOSYS; return (pid_t)-1; }
 int ios_system(const char *command) HERMES_WEAK;
-int ios_system(const char *command) { return system(command); }
+int ios_system(const char *command) { (void)command; errno = ENOSYS; return -1; }
 void ios_exit(int code) HERMES_WEAK;
 void ios_exit(int code) { _Exit(code); }
 int ios_execv(const char *path, char *const argv[]) HERMES_WEAK;
-int ios_execv(const char *path, char *const argv[]) { return execv(path, argv); }
+int ios_execv(const char *path, char *const argv[]) { (void)path; (void)argv; errno = ENOSYS; return -1; }
 int ios_execve(const char *path, char *const argv[], char *const envp[]) HERMES_WEAK;
-int ios_execve(const char *path, char *const argv[], char *const envp[]) { return execve(path, argv, envp); }
+int ios_execve(const char *path, char *const argv[], char *const envp[]) { (void)path; (void)argv; (void)envp; errno = ENOSYS; return -1; }
 int ios_dup2(int oldfd, int newfd) HERMES_WEAK;
 int ios_dup2(int oldfd, int newfd) { return dup2(oldfd, newfd); }
 int ios_isatty(int fd) HERMES_WEAK;
