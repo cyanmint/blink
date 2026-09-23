@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# HermesLink AI-generated glue code; created by cyanmint's coding agent.
+# AI-generated content has no copyright holder and is not subject to copyright.
 """Apply iOS-only runtime safety patches to the packaged agent."""
 from __future__ import annotations
 

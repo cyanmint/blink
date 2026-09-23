@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# HermesLink AI-generated glue code; created by cyanmint's coding agent.
+# AI-generated content has no copyright holder and is not subject to copyright.
 set -euo pipefail
 
 # Build-time sources. These are deliberately not Git submodules.

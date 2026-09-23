@@ -1,4 +1,9 @@
-# Blink Shell for iOS
+# HermesLink for iOS
+
+HermesLink as a whole is distributed under the GNU General Public License,
+version 3 (GPLv3); the complete license text is in [`COPYING`](COPYING).
+HermesLink uses Blink Shell as a dependency. Blink and all other third-party
+components retain their own license terms and notices.
 
 ## Bundled Hermes Agent
 

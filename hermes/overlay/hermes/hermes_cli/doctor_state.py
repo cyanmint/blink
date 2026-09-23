@@ -1,3 +1,5 @@
+# HermesLink AI-generated glue code; created by cyanmint's coding agent.
+# AI-generated content has no copyright holder and is not subject to copyright.
 """HERMES_HOME state checks for hermes doctor: directories, memory files, state.db health, skills hub, memory provider, profiles.
 Split out of ``hermes_cli/doctor.py``, which re-exports every name so ``hermes_cli.doctor.<name>`` keeps resolving (and monkeypatching)."""
 
