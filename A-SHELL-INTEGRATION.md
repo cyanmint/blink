@@ -37,8 +37,11 @@ The pinned `ios_system` revision is `cb41911b8cb0f699649f55b3886c045e7d78eb8c`
 (a-Shell's v3.0.3 source line). Its shell parser provides pipelines (`|`,
 `|&`), redirection, and command chaining (`&&`/`||`) while the existing Blink
 `TermDevice` remains the terminal front end. The upstream shell also retains
-its background-command dispatch table; a general shell `&` operator still
-requires a separate command-parser change and is not claimed as complete here.
+its background-command dispatch table. HermesLink additionally splits only
+unquoted standalone `&` operators and runs those commands on isolated
+a-Shell sessions; `&&`, `&>`, `&|`, and `|&` remain untouched for the upstream
+parser. This provides background execution without changing Blink's terminal
+input, gesture, or Smart Keys path.
 
 ## HermesLink-created glue
 

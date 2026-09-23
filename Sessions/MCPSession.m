@@ -49,6 +49,54 @@
 #include "ios_error.h"
 #include "Blink-Swift.h"
 
+static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
+  NSMutableArray<NSString *> *commands = [NSMutableArray array];
+  NSUInteger start = 0;
+  unichar quote = 0;
+  BOOL escaped = NO;
+
+  for (NSUInteger index = 0; index < command.length; index++) {
+    unichar character = [command characterAtIndex:index];
+    if (escaped) {
+      escaped = NO;
+      continue;
+    }
+    if (character == '\\' && quote != '\'') {
+      escaped = YES;
+      continue;
+    }
+    if (quote != 0) {
+      if (character == quote) {
+        quote = 0;
+      }
+      continue;
+    }
+    if (character == '\'' || character == '"') {
+      quote = character;
+      continue;
+    }
+    if (character != '&') {
+      continue;
+    }
+    // Leave &&, &>, &|, and |& for ios_system's own parser.
+    unichar previous = index > 0 ? [command characterAtIndex:index - 1] : 0;
+    unichar next = index + 1 < command.length ? [command characterAtIndex:index + 1] : 0;
+    if (previous == '&' || previous == '|' || next == '&' || next == '>' || next == '|') {
+      continue;
+    }
+    NSString *part = [command substringWithRange:NSMakeRange(start, index - start)];
+    [commands addObject:[part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]]];
+    start = index + 1;
+  }
+
+  if (start == 0) {
+    return @[command];
+  }
+  [commands addObject:[[command substringFromIndex:start]
+                       stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]]];
+  return commands;
+}
+
 
 @implementation MCPSession {
   NSString * _sessionUUID;
@@ -60,6 +108,8 @@
   TermStream *_cmdStream;
   NSString *_currentCmdLine;
 }
+
+- (void)_runBackgroundCommand:(NSString *)command;
 
 @dynamic sessionParams;
 
@@ -166,6 +216,23 @@
 - (BOOL)_runCommand:(NSString *)cmdline skipHistoryRecord: (BOOL) skipHistoryRecord {
   
   cmdline = [cmdline stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+
+  NSArray<NSString *> *backgroundCommands = MCPSplitBackgroundCommands(cmdline);
+  if (backgroundCommands.count > 1) {
+    for (NSUInteger index = 0; index + 1 < backgroundCommands.count; index++) {
+      NSString *backgroundCommand = backgroundCommands[index];
+      if (backgroundCommand.length > 0) {
+        [self _runBackgroundCommand:backgroundCommand];
+      }
+    }
+    cmdline = backgroundCommands.lastObject;
+    if (cmdline.length == 0) {
+      if (_device) {
+        [_device prompt:@"blink> " secure:NO shell:YES];
+      }
+      return YES;
+    }
+  }
   
   if (!skipHistoryRecord) {
     [HistoryObj appendIfNeededWithCommand:cmdline];
@@ -268,6 +335,39 @@
   }
   
   return YES;
+}
+
+- (void)_runBackgroundCommand:(NSString *)command {
+  TermStream *stream = [_device.stream duplicate];
+  NSString *sessionID = [NSString stringWithFormat:@"%@-background-%@",
+                         _sessionUUID, [NSProcessInfo processInfo].globallyUniqueString];
+  MCPSession *session = self;
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    @autoreleasepool {
+      ios_switchSession(sessionID.UTF8String);
+      ios_setContext((__bridge void *)session);
+      ios_setMiniRoot([BlinkPaths homePath]);
+      [session updateAllowedPaths];
+      thread_stdin = nil;
+      thread_stdout = nil;
+      thread_stderr = nil;
+      ios_setStreams(stream.in, stream.out, stream.out);
+      FILE *tty = [stream openTTY];
+      ios_settty(tty);
+      ios_setWindowSize((int)session.device.cols, (int)session.device.rows, sessionID.UTF8String);
+
+      pid_t pid = ios_fork();
+      ios_system(command.UTF8String);
+      ios_waitpid(pid);
+      ios_releaseThreadId(pid);
+      ios_closeSession(sessionID.UTF8String);
+
+      if (tty) {
+        fclose(tty);
+      }
+      [stream close];
+    }
+  });
 }
 
 - (int)main:(int)argc argv:(char **)argv
