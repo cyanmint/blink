@@ -5,15 +5,13 @@
  * interpreter used by Blink/a-Shell. It does not implement shell commands.
  */
 #include <Python.h>
-#include <errno.h>
+#include <dlfcn.h>
 
-#if defined(__GNUC__)
-extern int ios_system(const char *inputCmd) __attribute__((weak_import));
-extern int ios_executable(const char *cmd) __attribute__((weak_import));
-#else
-extern int ios_system(const char *inputCmd);
-extern int ios_executable(const char *cmd);
-#endif
+typedef int (*hermeslink_shell_fn)(const char *);
+
+static hermeslink_shell_fn hermeslink_symbol(const char *name) {
+    return (hermeslink_shell_fn)dlsym(RTLD_DEFAULT, name);
+}
 
 static PyObject *hermeslink_system(PyObject *self, PyObject *args) {
     const char *command;
@@ -21,11 +19,12 @@ static PyObject *hermeslink_system(PyObject *self, PyObject *args) {
     if (!PyArg_ParseTuple(args, "s:system", &command)) {
         return NULL;
     }
-    if (ios_system == NULL) {
+    hermeslink_shell_fn function = hermeslink_symbol("ios_system");
+    if (function == NULL) {
         PyErr_SetString(PyExc_OSError, "ios_system is unavailable in this host");
         return NULL;
     }
-    return PyLong_FromLong((long)ios_system(command));
+    return PyLong_FromLong((long)function(command));
 }
 
 static PyObject *hermeslink_executable(PyObject *self, PyObject *args) {
@@ -34,10 +33,11 @@ static PyObject *hermeslink_executable(PyObject *self, PyObject *args) {
     if (!PyArg_ParseTuple(args, "s:executable", &command)) {
         return NULL;
     }
-    if (ios_executable == NULL) {
+    hermeslink_shell_fn function = hermeslink_symbol("ios_executable");
+    if (function == NULL) {
         Py_RETURN_FALSE;
     }
-    return PyBool_FromLong(ios_executable(command) != 0);
+    return PyBool_FromLong(function(command) != 0);
 }
 
 static PyMethodDef methods[] = {
