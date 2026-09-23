@@ -3,6 +3,8 @@ import sys
 
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
+if "import zipfile\n" not in text:
+    text = text.replace("import sys\n", "import sys\nimport zipfile\n", 1)
 host_anchor = 'HOST = os.getenv("HERMES_WEBUI_HOST", "127.0.0.1")\nPORT = int(os.getenv("HERMES_WEBUI_PORT", "8787"))\n'
 host_replacement = '''def _cli_override(name: str, default: str) -> str:
     try:
