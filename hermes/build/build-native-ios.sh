@@ -293,10 +293,13 @@ PY
 
 mkdir -p "$BUILD_ROOT/artifact"
 CC=arm64-apple-ios-clang PATH="$TOOLBIN:$PATH" \
+  HERMES_SKIP_RUNTIME_PACKAGE="${HERMES_SKIP_RUNTIME_PACKAGE:-0}" \
   bash "$ROOT/build/package-native-ios.sh" \
   "$TARGET_ROOT" "$BUILD_ROOT/artifact"
-rm -f "$ROOT/hermes"
-cp "$BUILD_ROOT/hermesrt.zip" "$ROOT/hermesrt.zip"
+if [ "${HERMES_SKIP_RUNTIME_PACKAGE:-0}" != "1" ]; then
+  rm -f "$ROOT/hermes"
+  cp "$BUILD_ROOT/hermesrt.zip" "$ROOT/hermesrt.zip"
+fi
 if [ "${HERMES_RUNTIME_PYTHON_ONLY:-0}" != "1" ]; then
   mkdir -p "$ROOT/Frameworks"
   rm -rf "$ROOT/Frameworks/HermesRuntime.framework"

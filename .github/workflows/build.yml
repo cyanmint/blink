@@ -211,6 +211,7 @@ jobs:
         env:
           BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
           IPHONEOS_DEPLOYMENT_TARGET: '16.1'
+          HERMES_SKIP_RUNTIME_PACKAGE: '1'
           JOBS: 4
         run: |
           set -euo pipefail
