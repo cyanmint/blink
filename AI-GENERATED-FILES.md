@@ -11,6 +11,7 @@ Under the project's stated attribution policy, AI-generated content has no copyr
 - `hermes/build/fetch-sources.sh`
 - `hermes/build/package-native-ios.sh`
 - `hermes/overlay/cpython/Programs/hermes_main.c`
+- `hermes/overlay/cpython/Modules/_hermeslink_shell.c`
 - `hermes/overlay/hermes/agent/legacy_responses.py`
 - `hermes/overlay/hermes/hermes_cli/doctor_state.py`
 - `hermes/overlay/hermes/hermes_cli/upgrade.py`
@@ -19,6 +20,11 @@ Under the project's stated attribution policy, AI-generated content has no copyr
 - `hermes/overlay/patches/patch-webui-zip.py`
 - `hermes/overlay/python/sitecustomize.py`
 - `install_hermes_runtime.sh`
+
+The a-Shell integration inventory is maintained separately in
+[`A-SHELL-INTEGRATION.md`](A-SHELL-INTEGRATION.md). Upstream a-Shell files,
+CPython, ios_system, WasmKit, and their dependencies are not AI-generated
+HermesLink glue and retain their own copyright and license terms.
 
 ## Project license
 
