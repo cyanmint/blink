@@ -90,6 +90,10 @@ with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_STORED) as z:
             z.write(source, target, compress_type=zipfile.ZIP_STORED)
 PY
 
+if [ "${HERMES_RUNTIME_PYTHON_ONLY:-0}" = "1" ]; then
+  exit 0
+fi
+
 FRAMEWORK="$OUTPUT_FRAMEWORK/HermesRuntime.framework"
 mkdir -p "$FRAMEWORK/Headers" "$FRAMEWORK/Modules"
 

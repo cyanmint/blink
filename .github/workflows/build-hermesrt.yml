@@ -35,16 +35,16 @@ jobs:
         env:
           BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
           IPHONEOS_DEPLOYMENT_TARGET: '16.1'
+          HERMES_RUNTIME_PYTHON_ONLY: '1'
           JOBS: 4
         run: |
           set -euo pipefail
           chmod +x hermes/build/*.sh
           bash hermes/build/build-native-ios.sh
 
-      - name: Validate hermesrt.zip and framework
+      - name: Validate Python-only hermesrt.zip
         run: |
           set -euo pipefail
-          test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
           test -s hermes/hermesrt.zip
           unzip -t hermes/hermesrt.zip
           python3 - hermes/hermesrt.zip <<'PY'
@@ -63,7 +63,6 @@ jobs:
           rm -rf runtime-artifact
           mkdir -p runtime-artifact
           cp hermes/hermesrt.zip runtime-artifact/hermesrt.zip
-          cp -R hermes/Frameworks runtime-artifact/Frameworks
 
       - name: Upload latest Hermes runtime
         uses: actions/upload-artifact@v4

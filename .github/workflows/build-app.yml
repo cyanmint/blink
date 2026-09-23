@@ -76,15 +76,23 @@ jobs:
         run: |
           set -euo pipefail
           test -s runtime-artifact/hermesrt.zip
-          test -x runtime-artifact/Frameworks/HermesRuntime.framework/HermesRuntime
-          rm -rf hermes/Frameworks
-          mkdir -p hermes/Frameworks
           cp runtime-artifact/hermesrt.zip hermes/hermesrt.zip
-          cp -R runtime-artifact/Frameworks/HermesRuntime.framework hermes/Frameworks/
-          bash install_hermes_runtime.sh hermes
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+
+      - name: Build native Hermes runtime for macOS app
+        env:
+          BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
+          IPHONEOS_DEPLOYMENT_TARGET: '16.1'
+          JOBS: 4
+        run: |
+          set -euo pipefail
+          chmod +x hermes/build/*.sh
+          bash hermes/build/build-native-ios.sh
+          cp runtime-artifact/hermesrt.zip hermes/hermesrt.zip
+          test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
+          bash install_hermes_runtime.sh hermes
 
       - name: Cache framework builds
         id: cache
