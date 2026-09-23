@@ -108,9 +108,13 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
   dispatch_queue_t _sshQueue;
   TermStream *_cmdStream;
   NSString *_currentCmdLine;
+  NSMutableArray<NSMutableDictionary *> *_backgroundJobs;
+  NSUInteger _nextBackgroundJobNumber;
 }
 
 - (void)_runBackgroundCommand:(NSString *)command;
+- (NSMutableDictionary *)_jobForArgument:(NSString *)argument;
+- (void)_printJobs;
 
 @dynamic sessionParams;
 
@@ -118,6 +122,8 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
   if (self = [super initWithDevice:device andParams:params]) {
     _sshClients = [[NSMutableArray alloc] init];
     _sessionUUID = [[NSProcessInfo processInfo] globallyUniqueString];
+    _backgroundJobs = [NSMutableArray array];
+    _nextBackgroundJobNumber = 1;
     _cmdQueue = dispatch_queue_create("mcp.command.queue", DISPATCH_QUEUE_SERIAL);
     _sshQueue = dispatch_queue_create("mcp.sshclients.queue", DISPATCH_QUEUE_SERIAL);
     [self setActiveSession];
@@ -250,6 +256,29 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
   NSArray *arr = [cmdline componentsSeparatedByString:@" "];
   NSString *cmd = arr[0];
 
+  if ([cmd isEqualToString:@"jobs"]) {
+    [self _printJobs];
+    if (_device) [_device prompt:@"blink> " secure:NO shell:YES];
+    return YES;
+  }
+  if ([cmd isEqualToString:@"bg"] || [cmd isEqualToString:@"fg"]) {
+    NSMutableDictionary *job = [self _jobForArgument:arr.count > 1 ? arr[1] : nil];
+    if (!job) {
+      fprintf(_stream.err, "%s: no such job\n", cmd.UTF8String);
+    } else if ([cmd isEqualToString:@"fg"]) {
+      job[@"state"] = @"Running";
+      dispatch_semaphore_wait(job[@"completion"], DISPATCH_TIME_FOREVER);
+      fprintf(_stream.out, "%s\n", [job[@"command"] UTF8String]);
+    } else {
+      // HermesLink starts '&' jobs in the background already.  bg therefore
+      // selects/reports the job without launching a duplicate command.
+      job[@"state"] = @"Running";
+      [self _printJobs];
+    }
+    if (_device) [_device prompt:@"blink> " secure:NO shell:YES];
+    return YES;
+  }
+
   if ([cmd isEqualToString:@"exit"]) {
     dispatch_async(dispatch_get_main_queue(), ^{
       [self.delegate sessionFinished];
@@ -343,6 +372,12 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
   NSString *sessionID = [NSString stringWithFormat:@"%@-background-%@",
                          _sessionUUID, [NSProcessInfo processInfo].globallyUniqueString];
   MCPSession *session = self;
+  NSMutableDictionary *job = [@{ @"number": @(_nextBackgroundJobNumber++),
+                                  @"command": command,
+                                  @"state": @"Running",
+                                  @"completion": dispatch_semaphore_create(0) } mutableCopy];
+  [_backgroundJobs addObject:job];
+  fprintf(_stream.out, "[%lu] %s\n", (unsigned long)[job[@"number"] integerValue], command.UTF8String);
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
     @autoreleasepool {
       ios_switchSession(sessionID.UTF8String);
@@ -363,12 +398,43 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
       ios_releaseThreadId(pid);
       ios_closeSession(sessionID.UTF8String);
 
+      @synchronized (session->_backgroundJobs) {
+        job[@"state"] = @"Done";
+      }
+      dispatch_semaphore_signal(job[@"completion"]);
+      fprintf(session->_stream.out, "[%lu]+ Done %s\n",
+              (unsigned long)[job[@"number"] integerValue], command.UTF8String);
+
       if (tty) {
         fclose(tty);
       }
       [stream close];
     }
   });
+}
+
+- (NSMutableDictionary *)_jobForArgument:(NSString *)argument {
+  @synchronized (_backgroundJobs) {
+    if (argument.length > 0 && [argument hasPrefix:@"%"])
+      argument = [argument substringFromIndex:1];
+    NSInteger requested = argument.integerValue;
+    for (NSMutableDictionary *job in [_backgroundJobs reverseObjectEnumerator]) {
+      if (argument.length == 0 || [job[@"number"] integerValue] == requested)
+        return job;
+    }
+  }
+  return nil;
+}
+
+- (void)_printJobs {
+  @synchronized (_backgroundJobs) {
+    for (NSDictionary *job in _backgroundJobs) {
+      fprintf(_stream.out, "[%lu] %-7s %s\n",
+              (unsigned long)[job[@"number"] integerValue],
+              [job[@"state"] UTF8String],
+              [job[@"command"] UTF8String]);
+    }
+  }
 }
 
 - (int)main:(int)argc argv:(char **)argv
