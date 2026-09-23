@@ -137,6 +137,7 @@ framework module HermesRuntime {
   export *
 }
 MODULEMAP
+if [ "${HERMES_SKIP_RUNTIME_PACKAGE:-0}" != "1" ]; then
 python3 - "$ARCHIVE" <<'PY'
 import sys, zipfile
 with zipfile.ZipFile(sys.argv[1]) as z:
@@ -149,3 +150,4 @@ with zipfile.ZipFile(sys.argv[1]) as z:
     assert not any(n.endswith(('.so', '.dylib', '.pyd', '.wasm')) for n in names)
 PY
 cp "$ARCHIVE" "$ROOT/hermesrt.zip"
+fi

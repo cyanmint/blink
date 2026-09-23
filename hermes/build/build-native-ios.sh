@@ -304,7 +304,11 @@ if [ "${HERMES_RUNTIME_PYTHON_ONLY:-0}" != "1" ]; then
   mkdir -p "$ROOT/Frameworks"
   rm -rf "$ROOT/Frameworks/HermesRuntime.framework"
   cp -a "$BUILD_ROOT/artifact/HermesRuntime.framework" "$ROOT/Frameworks/HermesRuntime.framework"
-  file "$ROOT/Frameworks/HermesRuntime.framework/HermesRuntime" "$ROOT/hermesrt.zip"
+  if [ "${HERMES_SKIP_RUNTIME_PACKAGE:-0}" = "1" ]; then
+    file "$ROOT/Frameworks/HermesRuntime.framework/HermesRuntime"
+  else
+    file "$ROOT/Frameworks/HermesRuntime.framework/HermesRuntime" "$ROOT/hermesrt.zip"
+  fi
 else
   file "$ROOT/hermesrt.zip"
 fi
