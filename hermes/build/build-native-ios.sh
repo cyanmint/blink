@@ -129,11 +129,65 @@ else
 fi
 BUILD_TRIPLE=$(cd "$TARGET_ROOT" && ./config.guess)
 cat > "$TARGET_ROOT/ios_compat.c" <<'EOF'
+#include <errno.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#define HERMES_WEAK __attribute__((weak))
+
 int __isPlatformVersionAtLeast(uint32_t platform, uint32_t major, uint32_t minor, uint32_t subminor) {
     (void)platform; (void)major; (void)minor; (void)subminor;
     return 1;
 }
+
+// Weak fallbacks let the standalone runtime framework link. The host app's
+// Blink/a-Shell implementations override these symbols when present.
+__thread FILE *thread_stdin HERMES_WEAK = NULL;
+__thread FILE *thread_stdout HERMES_WEAK = NULL;
+__thread FILE *thread_stderr HERMES_WEAK = NULL;
+static void hermes_init_streams(void) {
+    if (!thread_stdin) thread_stdin = stdin;
+    if (!thread_stdout) thread_stdout = stdout;
+    if (!thread_stderr) thread_stderr = stderr;
+}
+char **environmentVariables(pid_t pid) HERMES_WEAK;
+char **environmentVariables(pid_t pid) { (void)pid; extern char **environ; return environ; }
+pid_t ios_currentPid(void) HERMES_WEAK;
+pid_t ios_currentPid(void) { return getpid(); }
+pid_t ios_fork(void) HERMES_WEAK;
+pid_t ios_fork(void) { errno = ENOSYS; return (pid_t)-1; }
+int ios_waitpid(pid_t pid) HERMES_WEAK;
+int ios_waitpid(pid_t pid) { return waitpid(pid, NULL, 0); }
+pid_t ios_full_waitpid(pid_t pid, int *status, int options) HERMES_WEAK;
+pid_t ios_full_waitpid(pid_t pid, int *status, int options) { return waitpid(pid, status, options); }
+int ios_system(const char *command) HERMES_WEAK;
+int ios_system(const char *command) { return system(command); }
+void ios_exit(int code) HERMES_WEAK;
+void ios_exit(int code) { _Exit(code); }
+int ios_execv(const char *path, char *const argv[]) HERMES_WEAK;
+int ios_execv(const char *path, char *const argv[]) { return execv(path, argv); }
+int ios_execve(const char *path, char *const argv[], char *const envp[]) HERMES_WEAK;
+int ios_execve(const char *path, char *const argv[], char *const envp[]) { return execve(path, argv, envp); }
+int ios_dup2(int oldfd, int newfd) HERMES_WEAK;
+int ios_dup2(int oldfd, int newfd) { return dup2(oldfd, newfd); }
+int ios_isatty(int fd) HERMES_WEAK;
+int ios_isatty(int fd) { return isatty(fd); }
+ssize_t ios_write(int fd, const void *buf, size_t len) HERMES_WEAK;
+ssize_t ios_write(int fd, const void *buf, size_t len) { return write(fd, buf, len); }
+size_t ios_fwrite(const void *p, size_t s, size_t n, FILE *f) HERMES_WEAK;
+size_t ios_fwrite(const void *p, size_t s, size_t n, FILE *f) { hermes_init_streams(); return fwrite(p, s, n, f); }
+int ios_fputs(const char *s, FILE *f) HERMES_WEAK;
+int ios_fputs(const char *s, FILE *f) { hermes_init_streams(); return fputs(s, f); }
+int ios_fputc(int c, FILE *f) HERMES_WEAK;
+int ios_fputc(int c, FILE *f) { hermes_init_streams(); return fputc(c, f); }
+int ios_puts(const char *s) HERMES_WEAK;
+int ios_puts(const char *s) { hermes_init_streams(); return puts(s); }
+int ios_fflush(FILE *f) HERMES_WEAK;
+int ios_fflush(FILE *f) { hermes_init_streams(); return fflush(f); }
 EOF
 clang --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT" \
   -c "$TARGET_ROOT/ios_compat.c" -o "$TARGET_ROOT/ios_compat.o"
