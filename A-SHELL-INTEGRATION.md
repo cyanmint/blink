@@ -38,8 +38,10 @@ code while making Python shell calls reach the same iOS command interpreter.
 - `hermes/overlay/python/sitecustomize.py`: installs the bridge as
   `os.system` when the native module is present.
 - `hermes/build/build-native-ios.sh`: compiles and registers the static module.
+- `hermes/build/fetch-ashell.sh`: reproducibly fetches the pinned a-Shell
+  checkout and its exact `cpython`/`SwiftTerm` submodule commits over HTTPS.
 
-These three files are HermesLink glue and carry the standard cyanmint coding
+These four files are HermesLink glue and carry the standard cyanmint coding
 agent header. They are separately listed in `AI-GENERATED-FILES.md`; the
 upstream a-Shell material above is not covered by that statement.
 
