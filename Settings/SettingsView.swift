@@ -44,6 +44,7 @@ struct SettingsView: View {
   @State private var _defaultUser = BLKDefaults.defaultUserName() ?? ""
   @State private var _autoStartHermesWebUI = UserDefaults.standard.object(forKey: "HermesLinkAutoStartWebUI") == nil || UserDefaults.standard.bool(forKey: "HermesLinkAutoStartWebUI")
   @State private var _openWebUIInForeground = UserDefaults.standard.object(forKey: "HermesLinkOpenWebUIInForeground") == nil || UserDefaults.standard.bool(forKey: "HermesLinkOpenWebUIInForeground")
+  @State private var _diagnosticsOn = HermesLinkDiagnosticsEnabled()
 
   @StateObject private var _entitlements: EntitlementsManager = .shared
   @StateObject private var _model = PurchasesUserModel.shared
@@ -162,6 +163,13 @@ struct SettingsView: View {
           .onChange(of: _openWebUIInForeground) { enabled in
             UserDefaults.standard.set(enabled, forKey: "HermesLinkOpenWebUIInForeground")
           }
+        Toggle("App, Term and WebUI logs", isOn: $_diagnosticsOn)
+          .onChange(of: _diagnosticsOn) { enabled in
+            HermesLinkSetDiagnosticsEnabled(enabled)
+          }
+        Text("Diagnostics are saved to Documents/hermeslink.log.")
+          .font(.footnote)
+          .foregroundColor(.secondary)
         Text("Three-finger swipe up opens settings. Three-finger swipe down opens the WebUI at 127.0.0.1:8787.")
           .font(.footnote)
           .foregroundColor(.secondary)
