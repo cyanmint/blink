@@ -318,16 +318,14 @@ class UIScrollViewWithoutHitTest: UIScrollView {
       _scrollView.panGestureRecognizer.dropTouches()
       recognizer.view?.superview?.dropSuperViewTouches()
       _scrollView.isScrollEnabled = false
-      _reportedY = point.y
+      _scrollPointTrackpad = point
     case .changed:
-      let deltaY = point.y - _reportedY
-      guard abs(deltaY) >= 5 else { return }
-      _reportedY = point.y
-      _pinchRecognizer.dropTouches()
+      guard _scrollPointTrackpad != nil else { return }
       _2fTapRecognizer.dropTouches()
-      _wkWebView?.evaluateJavaScript("term_reportWheelEvent(\"wheel\", \(point.x), \(point.y), 0, \(deltaY));", completionHandler: nil)
+      _wkWebView?.evaluateJavaScript("term_reportMouseEvent(\"mousemove\", \(point.x), \(point.y), 0);", completionHandler: nil)
     case .ended, .cancelled, .failed:
       _scrollView.isScrollEnabled = true
+      _scrollPointTrackpad = nil
     default:
       break
     }
