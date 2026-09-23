@@ -67,7 +67,7 @@ extern "C" {
   extern char **environmentVariables(pid_t pid);
   extern pid_t ios_currentPid(void);
   extern pid_t ios_fork(void);
-  extern int ios_waitpid(pid_t pid);
+  extern void ios_waitpid(pid_t pid);
   extern pid_t ios_full_waitpid(pid_t pid, int *status, int options);
   
   extern void ios_exit(int errorCode) __dead2; // set error code and exits from the thread.
