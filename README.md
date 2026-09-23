@@ -24,9 +24,8 @@ After installing the resources and building the app for a real iOS device,
 open a Blink terminal and run `hermes --help` or `hermes webui`. The `hermes`
 command uses Blink's `ios_system` execution path, so it does not require a
 jailbreak or access to `/usr/bin`.
-The embedded Python runtime registers a HermesLink native bridge so
-`os.system()` calls the same iOS shell interpreter instead of trying to spawn
-an unavailable POSIX child process.
+The embedded Python runtime uses the pinned a-Shell CPython implementation for
+its `os.system()` execution path; HermesLink does not add a second shell bridge.
 
 Do Blink! [Blink](https://blink.sh) is the first professional, desktop-grade terminal for iOS that leverages the support of Mosh and SSH. Thus, we can unequivocally guarantee stable connections, lightning-fast speeds, and full configurations. It can and should be your all-day-long tool.
 

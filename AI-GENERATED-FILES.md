@@ -13,7 +13,6 @@ Under the project's stated attribution policy, AI-generated content has no copyr
 - `hermes/build/package-hermesrt-linux.sh`
 - `hermes/build/package-native-ios.sh`
 - `hermes/overlay/cpython/Programs/hermes_main.c`
-- `hermes/overlay/cpython/Modules/_hermeslink_shell.c`
 - `hermes/overlay/hermes/agent/legacy_responses.py`
 - `hermes/overlay/hermes/hermes_cli/doctor_state.py`
 - `hermes/overlay/hermes/hermes_cli/upgrade.py`

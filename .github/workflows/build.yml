@@ -147,6 +147,37 @@ jobs:
               assert not any(name.endswith(('.so', '.dylib', '.pyd', '.wasm')) for name in names)
           PY
 
+      - name: Run Hermes tests and hermes doctor
+        env:
+          HERMES_TEST_HOME: ${{ runner.temp }}/hermes-test-home
+        run: |
+          set -euo pipefail
+          test_root="$RUNNER_TEMP/hermes-runtime-test"
+          rm -rf "$test_root" "$HERMES_TEST_HOME"
+          mkdir -p "$test_root" "$HERMES_TEST_HOME"
+          unzip -q hermes/hermesrt.zip -d "$test_root"
+          export HOME="$HERMES_TEST_HOME"
+          export HERMES_HOME="$HERMES_TEST_HOME/.hermes"
+          export PYTHONPATH="$test_root/python:$test_root/python/site-packages:$test_root/hermes:$test_root/hermes-webui"
+
+          run_hermes_test() {
+            set +e
+            "$@"
+            status=$?
+            set -e
+            if [ "$status" -eq 139 ] || [ "$status" -eq 134 ]; then
+              echo "Hermes test crashed (exit=$status): $*" >&2
+            fi
+            return "$status"
+          }
+
+          # Import the same entry modules used by the native launcher before
+          # running doctor. A failed import or native crash must fail CI.
+          run_hermes_test python3 -c \
+            'import hermes_cli.main, hermes_cli.doctor, sitecustomize'
+          run_hermes_test python3 -m hermes_cli.main --help
+          run_hermes_test python3 -m hermes_cli.main doctor
+
       - name: Publish hermesrt.zip to fixed release
         env:
           GH_TOKEN: ${{ github.token }}

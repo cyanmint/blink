@@ -48,11 +48,11 @@ requires thread-level suspend/resume support in `ios_system`.
 
 ## HermesLink-created glue
 
-- `hermes/overlay/cpython/Modules/_hermeslink_shell.c`: static CPython module
-  resolving `system()` and `executable()` through the host's `ios_system` APIs.
-- `hermes/overlay/python/sitecustomize.py`: installs the bridge as
-  `os.system` when the native module is present.
-- `hermes/build/build-native-ios.sh`: compiles and registers the static module.
+- `hermes/overlay/python/sitecustomize.py`: keeps the runtime's pure-Python
+  metadata and hashing fallbacks. Shell execution is provided by the pinned
+  a-Shell CPython runtime and is not replaced by HermesLink glue.
+- `hermes/build/build-native-ios.sh`: builds and registers the a-Shell CPython
+  static modules.
 - `hermes/build/fetch-ashell.sh`: reproducibly fetches the pinned a-Shell
   checkout and its exact `cpython`/`SwiftTerm` submodule commits over HTTPS.
 - `hermes/build/package-hermesrt-linux.sh`: packages a pure-Python runtime
@@ -76,11 +76,12 @@ HermesLink does not yet carry the corresponding framework.
 
 ## Delivery boundary
 
-The native build path now uses the pinned a-Shell CPython checkout instead of
-the stock CPython checkout. The source's configure-time ABI remains authoritative
+The native build path uses the pinned a-Shell CPython checkout instead of the
+stock CPython checkout. The source's configure-time ABI remains authoritative
 (the current pinned checkout requires CPython 3.13), and successful macOS CI
-and device verification are still required before delivery. The Python shell
-bridge remains HermesLink glue and does not replace a-Shell's licensed sources.
+and device verification are still required before delivery. No additional
+`os.system`/`system()` bridge is linked into the native runtime; a-Shell's
+CPython implementation owns that execution path.
 
 The WASM command mapping is still only an entry point. The pinned checkout in
 this workspace contains zero-length `wasmkit` placeholders, so no executable

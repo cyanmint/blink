@@ -308,19 +308,14 @@ with output.open("w", encoding="utf-8", newline="\n") as stream:
     stream.write("#include <Python.h>\n")
     for name in modules:
         stream.write(f"PyMODINIT_FUNC PyInit_{name}(void);\n")
-    stream.write("PyMODINIT_FUNC PyInit__hermeslink_shell(void);\n")
     stream.write("\nint hermes_register_native_modules(void) {\n")
     for name in modules:
         stream.write(f'    PyImport_AppendInittab("{name}", PyInit_{name});\n')
-    stream.write("    PyImport_AppendInittab(\"_hermeslink_shell\", PyInit__hermeslink_shell);\n")
     stream.write("    return 0;\n}\n")
 PY
 (cd "$TARGET_ROOT" && \
   "$TOOLBIN/arm64-apple-ios-clang" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" -I"$ROOT/../Blink" \
     -c "$BUILD_ROOT/native_modules.c" -o native_modules.o && \
-  "$TOOLBIN/arm64-apple-ios-clang" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" -I"$ROOT/../Blink" \
-    -c "$ROOT/overlay/cpython/Modules/_hermeslink_shell.c" -o _hermeslink_shell.o && \
-  printf '%s\n' _hermeslink_shell.o >> native-module-objects.txt && \
   printf '%s\n' native_modules.o >> native-module-objects.txt && \
   sort -u native-module-objects.txt -o native-module-objects.txt)
 (cd "$TARGET_ROOT" && \

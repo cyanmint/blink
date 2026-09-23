@@ -8,22 +8,6 @@ import sys
 import zipfile
 
 
-def _install_ios_shell_bridge() -> None:
-    """Route Python's os.system to the host Blink/a-Shell shell."""
-    try:
-        import os
-        import _hermeslink_shell
-    except (ImportError, OSError):
-        return
-
-    if getattr(os, "_hermeslink_shell_bridge", False):
-        return
-
-    os.system = _hermeslink_shell.system
-    os._hermeslink_shell_bridge = True
-    os.hermeslink_executable = _hermeslink_shell.executable
-
-
 def _install_zip_metadata_fallbacks() -> None:
     """Make importlib.metadata find dist-info nested under the runtime ZIP."""
     try:
@@ -96,4 +80,3 @@ def _install_hash_fallbacks() -> None:
 
 _install_zip_metadata_fallbacks()
 _install_hash_fallbacks()
-_install_ios_shell_bridge()
