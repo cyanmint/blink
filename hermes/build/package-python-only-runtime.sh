@@ -23,7 +23,8 @@ HERMES_RUNTIME_PYTHON_ONLY=1 \
 HOST_PYTHON="$HOST_PYTHON" \
 HERMES_REFRESH_VENDOR=1 \
 bash "$ROOT/build/package-native-ios.sh" "$CPYTHON_ROOT" "$BUILD_ROOT/artifact"
-cp "$ROOT/hermesrt.zip" "$BUILD_ROOT/artifact/hermesrt.zip"
+cp "$BUILD_ROOT/hermesrt.zip" "$BUILD_ROOT/artifact/hermesrt.zip"
+cp "$BUILD_ROOT/hermesrt.zip" "$ROOT/hermesrt.zip"
 
 python3 - "$BUILD_ROOT/artifact/hermesrt.zip" <<'PY'
 import sys
