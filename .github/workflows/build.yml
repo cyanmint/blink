@@ -52,6 +52,7 @@ jobs:
         id: decision
         env:
           EVENT_NAME: ${{ github.event_name }}
+          EVENT_PATH: ${{ github.event_path }}
           BEFORE_SHA: ${{ github.event.before }}
           CURRENT_SHA: ${{ github.sha }}
           RUNTIME_OVERRIDE: ${{ inputs.runtime || 'auto' }}
@@ -60,10 +61,16 @@ jobs:
           set -euo pipefail
           if [ "$EVENT_NAME" = workflow_dispatch ]; then
             changed_files=''
-          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != 0000000000000000000000000000000000000000 ]; then
-            changed_files="$(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA")"
           else
-            changed_files="$(git ls-tree -r --name-only "$CURRENT_SHA")"
+            # Use the files listed in this push event. This covers every commit
+            # included in the push, rather than inspecting only HEAD^.
+            changed_files="$(jq -r '.commits[]? | (.added[]?, .modified[]?, .removed[]?)' "$EVENT_PATH")"
+            # GitHub may omit the commit list for an unusually large push.
+            # In that case, compare the push's before/after range, not one commit.
+            if [ -z "$changed_files" ] && [ -n "$BEFORE_SHA" ] && \
+               [ "$BEFORE_SHA" != 0000000000000000000000000000000000000000 ]; then
+              changed_files="$(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA")"
+            fi
           fi
 
           runtime_changed=false
