@@ -44,6 +44,8 @@ struct SettingsView: View {
   @State private var _defaultUser = BLKDefaults.defaultUserName() ?? ""
   @State private var _autoStartHermesWebUI = UserDefaults.standard.object(forKey: "HermesLinkAutoStartWebUI") == nil || UserDefaults.standard.bool(forKey: "HermesLinkAutoStartWebUI")
   @State private var _openWebUIInForeground = UserDefaults.standard.object(forKey: "HermesLinkOpenWebUIInForeground") == nil || UserDefaults.standard.bool(forKey: "HermesLinkOpenWebUIInForeground")
+  @State private var _webUIListenOnAllInterfaces = UserDefaults.standard.string(forKey: "HermesLinkWebUIHost") == "0.0.0.0"
+  @State private var _webUIPort = String(UserDefaults.standard.integer(forKey: "HermesLinkWebUIPort") == 0 ? 8787 : UserDefaults.standard.integer(forKey: "HermesLinkWebUIPort"))
   @State private var _diagnosticsOn = HermesLinkDiagnosticsEnabled()
 
   @StateObject private var _entitlements: EntitlementsManager = .shared
@@ -163,6 +165,26 @@ struct SettingsView: View {
           .onChange(of: _openWebUIInForeground) { enabled in
             UserDefaults.standard.set(enabled, forKey: "HermesLinkOpenWebUIInForeground")
           }
+        Picker("WebUI listen address", selection: $_webUIListenOnAllInterfaces) {
+          Text("This device only (127.0.0.1)").tag(false)
+          Text("All interfaces (0.0.0.0)").tag(true)
+        }
+        .onChange(of: _webUIListenOnAllInterfaces) { listenOnAllInterfaces in
+          UserDefaults.standard.set(listenOnAllInterfaces ? "0.0.0.0" : "127.0.0.1", forKey: "HermesLinkWebUIHost")
+        }
+        HStack {
+          Text("WebUI port")
+          Spacer()
+          TextField("8787", text: $_webUIPort)
+            .keyboardType(.numberPad)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 90)
+            .onSubmit {
+              let port = min(max(Int(_webUIPort) ?? 8787, 1), 65535)
+              _webUIPort = String(port)
+              UserDefaults.standard.set(port, forKey: "HermesLinkWebUIPort")
+            }
+        }
         Toggle("App, Term and WebUI logs", isOn: $_diagnosticsOn)
           .onChange(of: _diagnosticsOn) { enabled in
             HermesLinkSetDiagnosticsEnabled(enabled)
@@ -170,7 +192,7 @@ struct SettingsView: View {
         Text("Diagnostics are saved to Documents/hermeslink.log.")
           .font(.footnote)
           .foregroundColor(.secondary)
-        Text("Three-finger swipe up opens settings. Three-finger swipe down opens the WebUI at 127.0.0.1:8787.")
+        Text("Three-finger swipe up opens settings. Three-finger swipe down opens the WebUI using the address and port above.")
           .font(.footnote)
           .foregroundColor(.secondary)
       }
