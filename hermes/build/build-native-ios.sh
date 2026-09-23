@@ -316,9 +316,9 @@ with output.open("w", encoding="utf-8", newline="\n") as stream:
     stream.write("    return 0;\n}\n")
 PY
 (cd "$TARGET_ROOT" && \
-  "$TOOLBIN/arm64-apple-ios-clang" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" \
+  "$TOOLBIN/arm64-apple-ios-clang" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" -I"$ROOT/../Blink" \
     -c "$BUILD_ROOT/native_modules.c" -o native_modules.o && \
-  "$TOOLBIN/arm64-apple-ios-clang" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" \
+  "$TOOLBIN/arm64-apple-ios-clang" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" -I"$ROOT/../Blink" \
     -c "$ROOT/overlay/cpython/Modules/_hermeslink_shell.c" -o _hermeslink_shell.o && \
   printf '%s\n' _hermeslink_shell.o >> native-module-objects.txt && \
   printf '%s\n' native_modules.o >> native-module-objects.txt && \
