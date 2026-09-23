@@ -162,12 +162,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if ! gh release view "$HERMES_RUNTIME_RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$HERMES_RUNTIME_RELEASE_TAG" \
-              --title 'Hermes runtime (latest)' \
-              --notes 'Mutable runtime asset used by HermesLink app builds.'
+          # Recreate the mutable release instead of using --clobber. GitHub
+          # can retain a stale asset id after an interrupted upload; gh then
+          # receives 404 while trying to replace an asset that still appears
+          # in the release metadata.
+          if gh release view "$HERMES_RUNTIME_RELEASE_TAG" >/dev/null 2>&1; then
+            gh release delete "$HERMES_RUNTIME_RELEASE_TAG" --yes
           fi
-          gh release upload "$HERMES_RUNTIME_RELEASE_TAG" hermes/hermesrt.zip --clobber
+          gh release create "$HERMES_RUNTIME_RELEASE_TAG" \
+            --title 'Hermes runtime (latest)' \
+            --notes 'Mutable runtime asset used by HermesLink app builds.' \
+            hermes/hermesrt.zip
 
   build-app:
     name: Build HermesLink app
