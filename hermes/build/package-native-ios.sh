@@ -11,7 +11,9 @@ OPENSSL_INSTALL=${OPENSSL_INSTALL:-$BUILD_ROOT/openssl-install}
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
-[ -f "$TARGET_ROOT/libpython3.13.a" ] || { echo "missing target libpython3.13.a" >&2; exit 2; }
+if [ "${HERMES_RUNTIME_PYTHON_ONLY:-0}" != "1" ]; then
+  [ -f "$TARGET_ROOT/libpython3.13.a" ] || { echo "missing target libpython3.13.a" >&2; exit 2; }
+fi
 [ -d "$TARGET_ROOT/Lib/encodings" ] || { echo "missing CPython standard library" >&2; exit 2; }
 HERMES_SOURCE=${HERMES_SOURCE:-$ROOT/build/external/hermes-agent}
 WEBUI_SOURCE=${WEBUI_SOURCE:-$ROOT/build/external/hermes-webui}

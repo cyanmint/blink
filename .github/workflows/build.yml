@@ -125,21 +125,19 @@ jobs:
       - name: Cache Hermes compilation
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/hermes-build/native-ios
-          key: ${{ runner.os }}-hermes-ios-${{ hashFiles('hermes/build/*.sh', 'hermes/overlay/**', 'hermes/patches/**') }}
+          path: ${{ runner.temp }}/hermes-build/python-runtime
+          key: ${{ runner.os }}-hermes-python-${{ hashFiles('hermes/build/*.sh', 'hermes/patches/**') }}
           restore-keys: |
-            ${{ runner.os }}-hermes-ios-
+            ${{ runner.os }}-hermes-python-
 
       - name: Build Python-only hermesrt.zip
         env:
-          BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
-          IPHONEOS_DEPLOYMENT_TARGET: '16.1'
-          HERMES_RUNTIME_PYTHON_ONLY: '1'
+          BUILD_ROOT: ${{ runner.temp }}/hermes-build/python-runtime
           JOBS: 4
         run: |
           set -euo pipefail
           chmod +x hermes/build/*.sh
-          bash hermes/build/build-native-ios.sh
+          bash hermes/build/package-python-only-runtime.sh
 
       - name: Validate Python-only hermesrt.zip
         run: |
