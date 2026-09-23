@@ -267,33 +267,6 @@ struct SettingsView: View {
   }
 }
 
-struct TermSettingsView: View {
-  @Environment(\.dismiss) private var _dismiss
-  @State private var _diagnosticsOn = HermesLinkDiagnosticsEnabled()
-
-  var body: some View {
-    NavigationStack {
-      Form {
-        Section("Logs") {
-          Toggle("App, Term and WebUI logs", isOn: $_diagnosticsOn)
-            .onChange(of: _diagnosticsOn) { enabled in
-              HermesLinkSetDiagnosticsEnabled(enabled)
-            }
-          Text("Diagnostics are saved to Documents/hermeslink.log.")
-            .font(.footnote)
-            .foregroundColor(.secondary)
-        }
-      }
-      .navigationTitle("Term Settings")
-      .toolbar {
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Done") { _dismiss() }
-        }
-      }
-    }
-  }
-}
-
 fileprivate struct BlinkClassicToPlusWindow: View {
   let urlHandler: (URL) -> ()
   let dismissHandler: () -> ()
