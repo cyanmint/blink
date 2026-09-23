@@ -1,0 +1,288 @@
+name: Build HermesLink
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      runtime:
+        description: Runtime stage execution
+        required: true
+        type: choice
+        options:
+          - auto
+          - true
+          - false
+        default: auto
+      app:
+        description: App stage execution
+        required: true
+        type: choice
+        options:
+          - auto
+          - true
+          - false
+        default: auto
+      run_tests:
+        description: Run HermesLink simulator tests before archiving
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  actions: read
+  contents: write
+
+env:
+  HERMES_RUNTIME_RELEASE_TAG: hermesrt-latest
+
+jobs:
+  decide:
+    name: Decide build stages
+    runs-on: ubuntu-latest
+    outputs:
+      run_runtime: ${{ steps.decision.outputs.run_runtime }}
+      run_app: ${{ steps.decision.outputs.run_app }}
+    steps:
+      - name: Check out HermesLink
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed components
+        id: decision
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+          RUNTIME_OVERRIDE: ${{ inputs.runtime || 'auto' }}
+          APP_OVERRIDE: ${{ inputs.app || 'auto' }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            changed_files=''
+          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != 0000000000000000000000000000000000000000 ]; then
+            changed_files="$(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA")"
+          else
+            changed_files="$(git ls-tree -r --name-only "$CURRENT_SHA")"
+          fi
+
+          runtime_changed=false
+          app_changed=false
+          while IFS= read -r path; do
+            [ -n "$path" ] || continue
+            case "$path" in
+              hermes/*|install_hermes_runtime.sh|.github/workflows/build.yml)
+                runtime_changed=true
+                ;;
+            esac
+            case "$path" in
+              Blink/*|BlinkTests/*|Settings/*|Sessions/*|Resources/*|Media.xcassets/*|*.xcodeproj/*|*.xcconfig|Frameworks/*|get_frameworks.sh|get_resources.sh|install_hermes_runtime.sh|.github/workflows/build.yml)
+                app_changed=true
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          choose() {
+            case "$1" in
+              true) printf 'true' ;;
+              false) printf 'false' ;;
+              auto) printf '%s' "$2" ;;
+              *) echo "invalid override: $1" >&2; exit 2 ;;
+            esac
+          }
+          run_runtime="$(choose "$RUNTIME_OVERRIDE" "$runtime_changed")"
+          run_app="$(choose "$APP_OVERRIDE" "$app_changed")"
+          printf 'runtime_changed=%s app_changed=%s override_runtime=%s override_app=%s\n' \
+            "$runtime_changed" "$app_changed" "$RUNTIME_OVERRIDE" "$APP_OVERRIDE"
+          printf 'run_runtime=%s\n' "$run_runtime" >> "$GITHUB_OUTPUT"
+          printf 'run_app=%s\n' "$run_app" >> "$GITHUB_OUTPUT"
+          printf 'run_runtime=%s run_app=%s\n' "$run_runtime" "$run_app"
+
+  build-runtime:
+    name: Build and publish hermesrt.zip
+    needs: decide
+    if: needs.decide.outputs.run_runtime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out HermesLink
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Linux cross-build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld llvm
+
+      - name: Cache Hermes compilation
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/hermes-build/native-ios
+          key: ${{ runner.os }}-hermes-ios-${{ hashFiles('hermes/build/*.sh', 'hermes/overlay/**', 'hermes/patches/**') }}
+          restore-keys: |
+            ${{ runner.os }}-hermes-ios-
+
+      - name: Build Python-only hermesrt.zip
+        env:
+          BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
+          IPHONEOS_DEPLOYMENT_TARGET: '16.1'
+          HERMES_RUNTIME_PYTHON_ONLY: '1'
+          JOBS: 4
+        run: |
+          set -euo pipefail
+          chmod +x hermes/build/*.sh
+          bash hermes/build/build-native-ios.sh
+
+      - name: Validate Python-only hermesrt.zip
+        run: |
+          set -euo pipefail
+          test -s hermes/hermesrt.zip
+          unzip -t hermes/hermesrt.zip
+          python3 - hermes/hermesrt.zip <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              names = set(archive.namelist())
+              assert 'hermes-runtime.timestamp' in names
+              assert archive.read('hermes-runtime.timestamp').strip().isdigit()
+              assert 'hermes/hermes_cli/main.py' in names
+              assert 'python/encodings/__init__.py' in names
+              assert not any(name.endswith(('.so', '.dylib', '.pyd', '.wasm')) for name in names)
+          PY
+
+      - name: Publish hermesrt.zip to fixed release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$HERMES_RUNTIME_RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$HERMES_RUNTIME_RELEASE_TAG" \
+              --title 'Hermes runtime (latest)' \
+              --notes 'Mutable runtime asset used by HermesLink app builds.'
+          fi
+          gh release upload "$HERMES_RUNTIME_RELEASE_TAG" hermes/hermesrt.zip --clobber
+
+  build-app:
+    name: Build HermesLink app
+    needs: [decide, build-runtime]
+    if: >-
+      always() &&
+      needs.decide.outputs.run_app == 'true' &&
+      (needs.build-runtime.result == 'success' || needs.build-runtime.result == 'skipped')
+    runs-on: macos-latest
+    steps:
+      - name: Check out HermesLink
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Download hermesrt.zip from fixed release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p runtime-artifact
+          gh release download "$HERMES_RUNTIME_RELEASE_TAG" \
+            --pattern hermesrt.zip \
+            --dir runtime-artifact \
+            --clobber
+          test -s runtime-artifact/hermesrt.zip
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build native Hermes runtime for app
+        env:
+          BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
+          IPHONEOS_DEPLOYMENT_TARGET: '16.1'
+          JOBS: 4
+        run: |
+          set -euo pipefail
+          chmod +x hermes/build/*.sh
+          bash hermes/build/build-native-ios.sh
+          cp runtime-artifact/hermesrt.zip hermes/hermesrt.zip
+          test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
+          bash install_hermes_runtime.sh hermes
+
+      - name: Cache framework builds
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            xcfs/.build
+            Frameworks/ios_system/xcfs/.build
+          key: ${{ runner.os }}-${{ hashFiles('get_frameworks.sh', 'xcfs/Package.swift') }}
+
+      - name: Get frameworks
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash get_frameworks.sh
+
+      - name: Get resources
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash get_resources.sh
+
+      - name: Prepare Xcode configuration
+        run: cp template_setup.xcconfig developer_setup.xcconfig
+
+      - name: Run HermesLink tests
+        if: ${{ inputs.run_tests == true }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          simulator_id="$(xcrun simctl list devices available | grep -m1 -Eo '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}')"
+          test -n "$simulator_id"
+          set -o pipefail
+          xcodebuild -project Blink.xcodeproj -scheme BlinkTests -sdk iphonesimulator -destination "id=$simulator_id" test | xcpretty
+
+      - name: Build unsigned device archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Blink.xcodeproj \
+            -scheme Blink \
+            -sdk iphoneos \
+            -configuration Debug \
+            -archivePath "$RUNNER_TEMP/HermesLink.xcarchive" \
+            IPHONEOS_DEPLOYMENT_TARGET='16.1' \
+            CODE_SIGN_IDENTITY='' \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO | tee "$RUNNER_TEMP/hermeslink-archive.log" | xcpretty
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          app="$(find "$RUNNER_TEMP/HermesLink.xcarchive/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app"
+          test -x "$app/Frameworks/HermesRuntime.framework/HermesRuntime"
+          codesign --force --sign - --timestamp=none "$app/Frameworks/HermesRuntime.framework"
+          codesign --force --deep --sign - --timestamp=none "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          rm -rf "$RUNNER_TEMP/Payload" "$RUNNER_TEMP/HermesLink.ipa"
+          mkdir -p "$RUNNER_TEMP/Payload/HermesLink.app"
+          /usr/bin/ditto "$app" "$RUNNER_TEMP/Payload/HermesLink.app"
+          test "$(find "$RUNNER_TEMP/Payload" -mindepth 1 -maxdepth 1 -type d -name '*.app' | wc -l | tr -d ' ')" = 1
+          test -f "$RUNNER_TEMP/Payload/HermesLink.app/Info.plist"
+          test -x "$RUNNER_TEMP/Payload/HermesLink.app/HermesLink"
+          (cd "$RUNNER_TEMP" && /usr/bin/zip -qry -X HermesLink.ipa Payload)
+          unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -Fx 'Payload/HermesLink.app/Info.plist'
+          unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -E '^Payload/HermesLink\\.app/(HermesLink|hermesrt\\.zip)$'
+          unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -Fx 'Payload/HermesLink.app/Frameworks/HermesRuntime.framework/HermesRuntime'
+
+      - name: Upload universal HermesLink IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermeslink-ipa
+          path: ${{ runner.temp }}/HermesLink.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload archive log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermeslink-archive-log
+          path: ${{ runner.temp }}/hermeslink-archive.log
+          if-no-files-found: ignore
