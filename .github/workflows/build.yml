@@ -191,6 +191,22 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
+      - name: Compute runtime cache key
+        id: runtime_hash
+        run: |
+          set -euo pipefail
+          printf 'sha256=%s\n' "$(shasum -a 256 runtime-artifact/hermesrt.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache native runtime and unsigned app
+        id: app_build_cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/hermes-build/native-ios
+            ${{ runner.temp }}/HermesLink.xcarchive
+            ${{ runner.temp }}/hermeslink-archive.log
+          key: ${{ runner.os }}-hermes-app-${{ github.sha }}-${{ steps.runtime_hash.outputs.sha256 }}-${{ hashFiles('Blink.xcodeproj/**', 'Blink/**', 'Settings/**', 'Sessions/**', 'Resources/**', 'Media.xcassets/**', 'Frameworks/**', '*.xcconfig', 'hermes/build/**', 'install_hermes_runtime.sh') }}
+
       - name: Build native Hermes runtime for app
         env:
           BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
@@ -235,6 +251,7 @@ jobs:
           xcodebuild -project Blink.xcodeproj -scheme BlinkTests -sdk iphonesimulator -destination "id=$simulator_id" test | xcpretty
 
       - name: Build unsigned device archive
+        if: steps.app_build_cache.outputs.cache-hit != 'true'
         run: |
           set -o pipefail
           xcodebuild archive \
@@ -248,6 +265,13 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=NO | tee "$RUNNER_TEMP/hermeslink-archive.log" | xcpretty
+
+      - name: Validate cached unsigned device archive
+        if: steps.app_build_cache.outputs.cache-hit == 'true'
+        run: |
+          set -euo pipefail
+          test -d "$RUNNER_TEMP/HermesLink.xcarchive/Products/Applications"
+          test -n "$(find "$RUNNER_TEMP/HermesLink.xcarchive/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
 
       - name: Package IPA
         run: |
