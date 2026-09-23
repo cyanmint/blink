@@ -40,7 +40,7 @@ uv pip install --target "$VENDOR_ROOT" --python "$HOST_PYTHON" \
 uv pip install --target "$VENDOR_ROOT" --python "$HOST_PYTHON" --no-deps \
   certifi==2026.5.20 python-dotenv==1.2.2 fire==0.7.1 rich==14.3.3 \
   tenacity==9.1.4 pyyaml==6.0.3 ruamel.yaml==0.18.17 requests==2.33.0 \
-  jinja2==3.1.6 prompt_toolkit==3.0.52 wcwidth==0.2.13 croniter==6.0.3 \
+  jinja2==3.1.6 prompt_toolkit==3.0.52 wcwidth==0.2.13 croniter==6.0.0 \
   packaging==26.0 Markdown==3.10.2 PyJWT==2.13.0 urllib3==2.7.0 \
   websockets==15.0.1 pathspec==1.1.1 pygments==2.19.2 typing-extensions==4.15.0 \
   tqdm==4.67.1 sniffio==1.3.1 socksio==1.0.0 markdown-it-py==4.0.0 mdurl==0.1.2
