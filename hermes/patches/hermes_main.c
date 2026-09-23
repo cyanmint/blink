@@ -99,6 +99,14 @@ static int configure_python_stdio(void) {
 int hermes_register_native_modules(void);
 
 __attribute__((visibility("default")))
+int HermesLinkRunCommand(const char *command) {
+    typedef int (*ios_system_fn)(const char *);
+    ios_system_fn run = (ios_system_fn)dlsym(RTLD_DEFAULT, "ios_system");
+    if (run == NULL || command == NULL) return 127;
+    return run(command);
+}
+
+__attribute__((visibility("default")))
 int hermes_runtime_main(int argc, char **argv) {
     setenv("HERMES_IOS_TERMINAL", "1", 1);
     const char *runtime_root = getenv("HERMES_RUNTIME_ROOT");

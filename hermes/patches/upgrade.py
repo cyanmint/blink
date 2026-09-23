@@ -134,14 +134,22 @@ def _github_archive_fallback(path: Path, remote_url: str, branch: str, *, create
             raise RuntimeError("source clone lost its .git directory")
 
 
-def _apply_overlay(root: Path) -> None:
-    overlay = root / "overlay"
+def _apply_patches(root: Path) -> None:
+    patches = root / "patches"
     runtime = root / "hermes"
-    if not overlay.is_dir():
-        raise RuntimeError("runtime ZIP does not contain overlay/")
-    _copytree_contents(overlay / "hermes", runtime)
+    if not patches.is_dir():
+        raise RuntimeError("runtime ZIP does not contain patches/")
+    for source, destination in (
+        (patches / "ios_shell.py", runtime / "ios_shell.py"),
+        (patches / "legacy_responses.py", runtime / "agent" / "legacy_responses.py"),
+        (patches / "doctor_state.py", runtime / "hermes_cli" / "doctor_state.py"),
+        (patches / "upgrade.py", runtime / "hermes_cli" / "upgrade.py"),
+        (patches / "sitecustomize.py", root / "python" / "sitecustomize.py"),
+    ):
+        if source.is_file():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
 
-    patches = overlay / "patches"
     for name, argument in (
         ("patch-ios-stability.py", str(runtime)),
         ("patch-agent-sdk-compat.py", str(runtime / "agent" / "agent_init.py")),
@@ -149,7 +157,7 @@ def _apply_overlay(root: Path) -> None:
     ):
         patch = patches / name
         if not patch.is_file():
-            raise RuntimeError(f"runtime ZIP is missing overlay patch: {name}")
+            raise RuntimeError(f"runtime ZIP is missing patch: {name}")
         saved = sys.argv
         try:
             sys.argv = [str(patch), argument]
@@ -166,7 +174,7 @@ def _build_runtime(root: Path) -> None:
     browser = agent / "plugins" / "browser"
     if browser.is_dir():
         (browser / "__init__.py").touch()
-    _apply_overlay(root)
+    _apply_patches(root)
 
 
 def _write_archive(archive: Path, root: Path, destination: Path) -> None:
@@ -182,7 +190,7 @@ def _write_archive(archive: Path, root: Path, destination: Path) -> None:
             output.writestr("hermes-runtime.timestamp", f"{time.time_ns()}\n")
             for name, data in sorted(python_entries.items()):
                 output.writestr(name, data)
-            for directory in ("hermes", "hermes-webui", "overlay"):
+            for directory in ("hermes", "hermes-webui", "patches"):
                 base = root / directory
                 for path in sorted(base.rglob("*")):
                     if path.is_file():

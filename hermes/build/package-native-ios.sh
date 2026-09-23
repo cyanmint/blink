@@ -19,15 +19,17 @@ WEBUI_SOURCE=${WEBUI_SOURCE:-$ROOT/build/external/hermes-webui}
 [ -f "$WEBUI_SOURCE/api/config.py" ] || { echo "missing Hermes WebUI source: $WEBUI_SOURCE" >&2; exit 2; }
 
 mkdir -p "$STAGE/hermes" "$STAGE/hermes-webui" "$STAGE/python/site-packages"
+cp -a "$ROOT/patches" "$STAGE/patches"
 cp -a "$TARGET_ROOT/Lib/." "$STAGE/python/"
 for package in acp_adapter agent cron gateway hermes_cli plugins providers tools tui_gateway hermes; do
   [ -d "$HERMES_SOURCE/$package" ] && cp -a "$HERMES_SOURCE/$package" "$STAGE/hermes/"
 done
 cp -a "$HERMES_SOURCE"/*.py "$STAGE/hermes/" 2>/dev/null || true
-cp -a "$ROOT/overlay/hermes/." "$STAGE/hermes/"
-"$HOST_PYTHON" "$ROOT/overlay/patches/patch-ios-stability.py" "$STAGE/hermes"
-"$HOST_PYTHON" "$ROOT/overlay/patches/patch-agent-sdk-compat.py" "$STAGE/hermes/agent/agent_init.py"
-cp "$ROOT/overlay/hermes/agent/legacy_responses.py" "$STAGE/hermes/agent/legacy_responses.py"
+"$HOST_PYTHON" "$ROOT/patches/patch-ios-stability.py" "$STAGE/hermes"
+"$HOST_PYTHON" "$ROOT/patches/patch-agent-sdk-compat.py" "$STAGE/hermes/agent/agent_init.py"
+cp "$ROOT/patches/legacy_responses.py" "$STAGE/hermes/agent/legacy_responses.py"
+cp "$ROOT/patches/doctor_state.py" "$STAGE/hermes/hermes_cli/doctor_state.py"
+cp "$ROOT/patches/upgrade.py" "$STAGE/hermes/hermes_cli/upgrade.py"
 VENDOR_ROOT=${HERMES_VENDOR:-$(dirname "$BUILD_ROOT")/vendor}
 if [ "${HERMES_REFRESH_VENDOR:-1}" = "1" ]; then
   command -v uv >/dev/null 2>&1 || { echo "uv is required to vendor pure-Python dependencies" >&2; exit 2; }
@@ -63,10 +65,10 @@ cp -a "$WEBUI_SOURCE/static" "$STAGE/hermes-webui/" 2>/dev/null || true
 for module in bootstrap.py server.py mcp_server.py; do
   [ -f "$WEBUI_SOURCE/$module" ] && cp "$WEBUI_SOURCE/$module" "$STAGE/hermes-webui/"
 done
-"$HOST_PYTHON" "$ROOT/overlay/patches/patch-webui-zip.py" "$STAGE/hermes-webui/api/config.py"
+"$HOST_PYTHON" "$ROOT/patches/patch-webui-zip.py" "$STAGE/hermes-webui/api/config.py"
 [ -d "$STAGE/hermes/plugins/browser" ] && : > "$STAGE/hermes/plugins/browser/__init__.py"
-cp "$ROOT/overlay/python/sitecustomize.py" "$STAGE/python/sitecustomize.py"
-cp -a "$ROOT/overlay" "$STAGE/overlay"
+cp "$ROOT/patches/sitecustomize.py" "$STAGE/python/sitecustomize.py"
+cp "$ROOT/patches/ios_shell.py" "$STAGE/hermes/ios_shell.py"
 # Native CPython modules are required to be statically linked into libpython.
 
 python3 - "$STAGE" "$ARCHIVE" <<'PY'
@@ -99,13 +101,13 @@ mkdir -p "$FRAMEWORK/Headers" "$FRAMEWORK/Modules"
 
 CC=${CC:-arm64-apple-ios-clang}
 "$CC" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" -I"$TARGET_ROOT" -I"$ROOT/../Blink" \
-  -c "$ROOT/overlay/cpython/Programs/hermes_main.c" -o "$BUILD_ROOT/hermes_main.o"
+  -c "$ROOT/patches/hermes_main.c" -o "$BUILD_ROOT/hermes_main.o"
 "$CC" -mios-version-min="${IPHONEOS_DEPLOYMENT_TARGET:-13.0}" \
 -Wl,-headerpad_max_install_names -Wl,-x -Wl,-no_function_starts -Wl,-no_data_in_code_info -Wl,-all_load "$TARGET_ROOT/libpython3.13.a" -Wl,-force_load,"$TARGET_ROOT/Modules/_hacl/libHacl_Hash_SHA2.a" -Wl,-force_load,"$TARGET_ROOT/Modules/expat/libexpat.a" "$BUILD_ROOT/hermes_main.o" \
   -Wl,-rpath,@loader_path -framework CoreFoundation -ldl -lpthread -lm -lz -lsqlite3 \
   -L"$OPENSSL_INSTALL/lib" -lssl -lcrypto "$TARGET_ROOT/ios_compat.o" \
   -dynamiclib -install_name "@rpath/HermesRuntime.framework/HermesRuntime" \
-  -Wl,-exported_symbol,_hermes_runtime_main \
+  -Wl,-exported_symbol,_hermes_runtime_main -Wl,-exported_symbol,_HermesLinkRunCommand \
   -o "$FRAMEWORK/HermesRuntime"
 chmod 755 "$FRAMEWORK/HermesRuntime"
 cat > "$FRAMEWORK/Info.plist" <<'PLIST'

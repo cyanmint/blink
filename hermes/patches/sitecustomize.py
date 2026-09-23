@@ -8,6 +8,7 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
+import os
 
 
 def _install_zip_metadata_fallbacks() -> None:
@@ -111,6 +112,28 @@ def _install_urlopen_fallbacks() -> None:
     urllib.request.urlopen = urlopen_with_retries
 
 
+def _install_ios_system_bridge() -> None:
+    """Route Python's shell entry point through Blink's ios_system registry."""
+    if os.environ.get("HERMES_IOS_TERMINAL") != "1":
+        return
+    try:
+        from hermes.ios_shell import _load_bridge
+    except Exception:
+        return
+    if getattr(os.system, "_hermes_ios_bridge", False):
+        return
+    native_system = _load_bridge()
+
+    def ios_system(command):
+        if not isinstance(command, str):
+            raise TypeError("system() argument must be str")
+        return int(native_system(command.encode("utf-8")))
+
+    ios_system._hermes_ios_bridge = True
+    os.system = ios_system
+
+
 _install_zip_metadata_fallbacks()
 _install_hash_fallbacks()
 _install_urlopen_fallbacks()
+_install_ios_system_bridge()
