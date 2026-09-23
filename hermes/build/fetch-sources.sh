@@ -4,21 +4,21 @@ set -euo pipefail
 # Build-time sources. These are deliberately not Git submodules.
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 DEST=${1:-"$ROOT/build/external"}
-AGENT_COMMIT=${HERMES_AGENT_COMMIT:-550d74c62ff7d218f3a88e3142d134020b605dc8}
-WEBUI_COMMIT=${HERMES_WEBUI_COMMIT:-e36f77389191fe9d81cd3a7416772e2f7b022e19}
+AGENT_BRANCH=${HERMES_AGENT_BRANCH:-main}
+WEBUI_BRANCH=${HERMES_WEBUI_BRANCH:-master}
 
 mkdir -p "$DEST"
 fetch() {
-  local name=$1 url=$2 commit=$3
+  local name=$1 url=$2 branch=$3
   local dir="$DEST/$name"
   if [ ! -d "$dir/.git" ]; then
     rm -rf "$dir"
-    git clone --no-checkout "$url" "$dir"
+    git clone --no-checkout --branch "$branch" "$url" "$dir"
   fi
-  git -C "$dir" fetch --depth=1 origin "$commit"
-  git -C "$dir" checkout --detach "$commit"
+  git -C "$dir" fetch --depth=1 origin "$branch"
+  git -C "$dir" checkout --detach "origin/$branch"
 }
 
-fetch hermes-agent https://github.com/NousResearch/hermes-agent.git "$AGENT_COMMIT"
-fetch hermes-webui https://github.com/nesquena/hermes-webui.git "$WEBUI_COMMIT"
-printf 'hermes-agent=%s\nhermes-webui=%s\n' "$AGENT_COMMIT" "$WEBUI_COMMIT" > "$DEST/SOURCES"
+fetch hermes-agent https://github.com/NousResearch/hermes-agent.git "$AGENT_BRANCH"
+fetch hermes-webui https://github.com/nesquena/hermes-webui.git "$WEBUI_BRANCH"
+printf 'hermes-agent branch=%s\nhermes-webui branch=%s\n' "$AGENT_BRANCH" "$WEBUI_BRANCH" > "$DEST/SOURCES"
