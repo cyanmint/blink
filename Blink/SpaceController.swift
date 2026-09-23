@@ -40,7 +40,7 @@ import Network
 
 
 // MARK: UIViewController
-class SpaceController: UIViewController {
+class SpaceController: UIViewController, UIGestureRecognizerDelegate {
   
   struct UIState: UserActivityCodable {
     var keys: [UUID] = []
@@ -69,8 +69,7 @@ class SpaceController: UIViewController {
   private var _snippetsVC: SnippetsViewController? = nil
   private var _blinkMenu: BlinkMenu? = nil
   private var _bottomTapAreaView = UIView()
-  private var _termSettingsSwipe: UISwipeGestureRecognizer!
-  private var _webUISwipe: UISwipeGestureRecognizer!
+  private var _threeFingerPan: UIPanGestureRecognizer!
 
   // Snips Input Mode tracking
   private var _isSnipsInputModeActive: Bool = false {
@@ -280,15 +279,16 @@ class SpaceController: UIViewController {
     doubleTap.numberOfTouchesRequired = 1
     _bottomTapAreaView.addGestureRecognizer(doubleTap)
 
-    _termSettingsSwipe = UISwipeGestureRecognizer(target: self, action: #selector(_openTermSettings(_:)))
-    _termSettingsSwipe.direction = .up
-    _termSettingsSwipe.numberOfTouchesRequired = 3
-    view.addGestureRecognizer(_termSettingsSwipe)
-
-    _webUISwipe = UISwipeGestureRecognizer(target: self, action: #selector(_openHermesWebUI(_:)))
-    _webUISwipe.direction = .down
-    _webUISwipe.numberOfTouchesRequired = 3
-    view.addGestureRecognizer(_webUISwipe)
+    // A pan recognizer is used instead of two UISwipeRecognizers. UISwipe can
+    // lose the gesture to the terminal/WebView scroll recognizers before it
+    // decides on a direction, which made the down gesture (and other gestures
+    // on an interactive terminal) disappear on iPadOS.
+    _threeFingerPan = UIPanGestureRecognizer(target: self, action: #selector(_handleThreeFingerPan(_:)))
+    _threeFingerPan.minimumNumberOfTouches = 3
+    _threeFingerPan.maximumNumberOfTouches = 3
+    _threeFingerPan.cancelsTouchesInView = false
+    _threeFingerPan.delegate = self
+    view.addGestureRecognizer(_threeFingerPan)
     
     NotificationCenter.default.addObserver(self, selector: #selector(_geoTrackStateChanged), name: NSNotification.Name.BLGeoTrackStateChange, object: nil)
     
@@ -900,7 +900,7 @@ extension SpaceController {
     }
   }
 
-  @objc private func _openHermesWebUI(_ recognizer: UISwipeGestureRecognizer) {
+  @objc private func _openHermesWebUI() {
     guard let term = currentTerm(),
           let url = URL(string: "http://127.0.0.1:8787") else { return }
     if Self.hermesWebUIPort == nil {
@@ -1175,9 +1175,25 @@ extension SpaceController {
       ._toggleQuickActionActionWith(receiver: self)
   }
 
-  @objc private func _openTermSettings(_ recognizer: UISwipeGestureRecognizer) {
+  @objc private func _openTermSettings() {
     guard presentedViewController == nil else { return }
     showConfigAction()
+  }
+
+  @objc private func _handleThreeFingerPan(_ recognizer: UIPanGestureRecognizer) {
+    guard recognizer.state == .ended else { return }
+    let translation = recognizer.translation(in: view)
+    guard abs(translation.y) > abs(translation.x), abs(translation.y) >= 40 else { return }
+    if translation.y < 0 {
+      _openTermSettings()
+    } else {
+      _openHermesWebUI()
+    }
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+    gestureRecognizer === _threeFingerPan || otherGestureRecognizer === _threeFingerPan
   }
   
   @objc func toggleGeoTrack() {
