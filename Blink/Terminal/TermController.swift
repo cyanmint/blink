@@ -78,7 +78,7 @@ private class ProxyView: UIView {
       guard let proxy = self else { return }
       if controlledView.superview === proxy {
         controlledView.frame = proxy.bounds
-      } else if controlledView.superview === parent {
+      } else if controlledView.superview === parent.superview {
         controlledView.frame = frame
       }
     }
@@ -96,7 +96,7 @@ private class ProxyView: UIView {
     }
     if controlledView.superview === self {
       controlledView.frame = bounds
-    } else if controlledView.superview === parent {
+    } else if controlledView.superview === parent.superview {
       // The controlled terminal is temporarily reparented beside this proxy.
       // Use the proxy's frame in that container's coordinate space; using
       // parent.frame here uses the container's coordinates twice and can
@@ -289,6 +289,10 @@ class TermController: UIViewController {
 
   public override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    // The terminal view is reparented beside the proxy. Re-apply the proxy's
+    // final frame after the page controller has laid out its container; the
+    // first startup layout can otherwise leave hterm at its two-row size.
+    _proxyView.placeControlledView()
     let newSize = view.bounds.size
     let didChangeSize = _termView.termUIState.viewSize != newSize
     _termView.termUIState.viewSize = newSize

@@ -909,6 +909,15 @@ extension SpaceController {
     term.termView.showBrowserWebView(url)
   }
 
+  @objc private func _toggleHermesWebUI() {
+    guard let term = currentTerm() else { return }
+    if term.termView.browserView != nil {
+      term.termView.toggleBrowserWebView()
+    } else {
+      _openHermesWebUI()
+    }
+  }
+
   @objc func newShellAction() {
     _newShellAction()
   }
@@ -1185,9 +1194,9 @@ extension SpaceController {
     let translation = recognizer.translation(in: view)
     guard abs(translation.y) > abs(translation.x), abs(translation.y) >= 40 else { return }
     if translation.y < 0 {
-      _openTermSettings()
+      _toggleHermesWebUI()
     } else {
-      _openHermesWebUI()
+      _openTermSettings()
     }
   }
 

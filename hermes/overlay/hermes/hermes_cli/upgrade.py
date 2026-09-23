@@ -6,6 +6,7 @@ import runpy
 import shutil
 import sys
 import tempfile
+import time
 import zipfile
 from urllib.parse import urlparse
 from pathlib import Path
@@ -178,6 +179,7 @@ def _write_archive(archive: Path, root: Path, destination: Path) -> None:
     temporary = destination.with_suffix(".upgrade.tmp")
     try:
         with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_STORED) as output:
+            output.writestr("hermes-runtime.timestamp", f"{time.time_ns()}\n")
             for name, data in sorted(python_entries.items()):
                 output.writestr(name, data)
             for directory in ("hermes", "hermes-webui", "overlay"):

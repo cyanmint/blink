@@ -70,10 +70,12 @@ cp -a "$ROOT/overlay" "$STAGE/overlay"
 # Native CPython modules are required to be statically linked into libpython.
 
 python3 - "$STAGE" "$ARCHIVE" <<'PY'
-import os, sys, zipfile
+import os, sys, time, zipfile
 root, output = sys.argv[1:]
+timestamp = os.environ.get("HERMES_RUNTIME_TIMESTAMP") or str(time.time_ns())
 with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_STORED) as z:
-    seen = set()
+    z.writestr('hermes-runtime.timestamp', timestamp + '\n')
+    seen = {'hermes-runtime.timestamp'}
     for directory, _, names in os.walk(root):
         for name in sorted(names):
             source = os.path.join(directory, name)
@@ -130,6 +132,8 @@ import sys, zipfile
 with zipfile.ZipFile(sys.argv[1]) as z:
     assert z.testzip() is None
     names = set(z.namelist())
+    assert 'hermes-runtime.timestamp' in names
+    assert z.read('hermes-runtime.timestamp').strip().isdigit()
     assert 'python/encodings/__init__.py' in names
     assert 'hermes/hermes_cli/main.py' in names
     assert not any(n.endswith(('.so', '.dylib', '.pyd', '.wasm')) for n in names)

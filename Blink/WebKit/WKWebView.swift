@@ -97,6 +97,7 @@ class UIScrollViewWithoutHitTest: UIScrollView {
   private let _1fTapRecognizer = UITapGestureRecognizer()
   private let _1fPanRecognizer = UIPanGestureRecognizer()
   private let _2fTapRecognizer = UITapGestureRecognizer()
+  private let _2fPanRecognizer = UIPanGestureRecognizer()
   private let _pinchRecognizer = UIPinchGestureRecognizer()
   private let _3fTapRecognizer = UITapGestureRecognizer()
   private let _longPressRecognizer = UILongPressGestureRecognizer()
@@ -134,6 +135,7 @@ class UIScrollViewWithoutHitTest: UIScrollView {
       _1fTapRecognizer,
       _1fPanRecognizer,
       _2fTapRecognizer,
+      _2fPanRecognizer,
       _3fTapRecognizer,
       _pinchRecognizer,
       _longPressRecognizer,
@@ -246,7 +248,12 @@ class UIScrollViewWithoutHitTest: UIScrollView {
     _2fTapRecognizer.numberOfTouchesRequired = 2
     _2fTapRecognizer.delegate = self
     _2fTapRecognizer.addTarget(self, action: #selector(_on2fTap(_:)))
-    _2fTapRecognizer.require(toFail: _pinchRecognizer)
+    _2fTapRecognizer.require(toFail: _2fPanRecognizer)
+
+    _2fPanRecognizer.minimumNumberOfTouches = 2
+    _2fPanRecognizer.maximumNumberOfTouches = 2
+    _2fPanRecognizer.delegate = self
+    _2fPanRecognizer.addTarget(self, action: #selector(_on2fPan(_:)))
     
     _pinchRecognizer.delegate = self
     _pinchRecognizer.addTarget(self, action: #selector(_onPinch(_:)))
@@ -301,6 +308,28 @@ class UIScrollViewWithoutHitTest: UIScrollView {
         target.perform(#selector(newShellAction), with: self)
       }
     default: break
+    }
+  }
+
+  @objc func _on2fPan(_ recognizer: UIPanGestureRecognizer) {
+    let point = recognizer.location(in: recognizer.view)
+    switch recognizer.state {
+    case .began:
+      _scrollView.panGestureRecognizer.dropTouches()
+      recognizer.view?.superview?.dropSuperViewTouches()
+      _scrollView.isScrollEnabled = false
+      _reportedY = point.y
+    case .changed:
+      let deltaY = point.y - _reportedY
+      guard abs(deltaY) >= 5 else { return }
+      _reportedY = point.y
+      _pinchRecognizer.dropTouches()
+      _2fTapRecognizer.dropTouches()
+      _wkWebView?.evaluateJavaScript("term_reportWheelEvent(\"wheel\", \(point.x), \(point.y), 0, \(deltaY));", completionHandler: nil)
+    case .ended, .cancelled, .failed:
+      _scrollView.isScrollEnabled = true
+    default:
+      break
     }
   }
 

@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import re
+import socket
 import sys
+import time
+import urllib.error
+import urllib.request
 import zipfile
 
 
@@ -76,5 +80,37 @@ def _install_hash_fallbacks() -> None:
     hashlib.blake2s = lambda data=b"", digest_size=32, **_: _FallbackHash(data, digest_size)
 
 
+def _install_urlopen_fallbacks() -> None:
+    """Retry transient iOS URL-open timeouts for every HTTP consumer.
+
+    Several independent CLI features use urllib directly. Keeping this at the
+    common boundary avoids provider-specific login patches and prevents a
+    transient DNS/connect timeout from aborting an otherwise recoverable flow.
+    """
+    original_urlopen = urllib.request.urlopen
+    if getattr(original_urlopen, "_hermes_ios_retry", False):
+        return
+
+    def urlopen_with_retries(url, data=None, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, *args, **kwargs):
+        effective_timeout = 60 if timeout is socket._GLOBAL_DEFAULT_TIMEOUT else max(float(timeout), 60.0)
+        last_error = None
+        for attempt in range(3):
+            try:
+                return original_urlopen(url, data=data, timeout=effective_timeout,
+                                        *args, **kwargs)
+            except (TimeoutError, socket.timeout, urllib.error.URLError) as exc:
+                reason = getattr(exc, "reason", None)
+                if not isinstance(exc, (TimeoutError, socket.timeout)) and not isinstance(reason, (TimeoutError, socket.timeout)):
+                    raise
+                last_error = exc
+                if attempt < 2:
+                    time.sleep(0.5 * (attempt + 1))
+        raise last_error
+
+    urlopen_with_retries._hermes_ios_retry = True
+    urllib.request.urlopen = urlopen_with_retries
+
+
 _install_zip_metadata_fallbacks()
 _install_hash_fallbacks()
+_install_urlopen_fallbacks()
