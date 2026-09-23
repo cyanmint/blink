@@ -216,7 +216,6 @@ jobs:
         run: |
           set -euo pipefail
           cp runtime-artifact/hermesrt.zip hermes/hermesrt.zip
-          bash install_hermes_runtime.sh hermes
 
       - name: Build native Hermes framework for the app
         env:
@@ -228,6 +227,7 @@ jobs:
           chmod +x hermes/build/*.sh
           bash hermes/build/build-native-ios.sh
           test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
+          bash install_hermes_runtime.sh hermes
 
       - name: Cache framework builds
         id: cache
