@@ -49,12 +49,29 @@ static BOOL HermesReadRuntimeTimestamp(NSString *path, unsigned long long *times
 }
 
 static NSString *HermesPrepareRuntimeArchive(NSString *bundledRuntime) {
-  NSString *runtimeRoot = [NSString stringWithUTF8String:getenv("HERMES_HOME") ?: ""];
+  NSFileManager *fileManager = [NSFileManager defaultManager];
+  NSMutableArray<NSString *> *runtimeRoots = [NSMutableArray array];
+  const char *environmentRoots[] = { getenv("HERMES_HOME"), getenv("TERMINAL_CWD") };
+  for (NSUInteger index = 0; index < sizeof(environmentRoots) / sizeof(environmentRoots[0]); index++) {
+    if (environmentRoots[index] != NULL && environmentRoots[index][0] != '\0') {
+      [runtimeRoots addObject:[NSString stringWithUTF8String:environmentRoots[index]]];
+    }
+  }
+  NSString *homeDocuments = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents"];
+  if (homeDocuments.length > 0) [runtimeRoots addObject:homeDocuments];
+  NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+  if (documents.length > 0) [runtimeRoots addObject:documents];
+  NSString *runtimeRoot = nil;
+  for (NSString *candidate in runtimeRoots) {
+    if ([fileManager fileExistsAtPath:[candidate stringByAppendingPathComponent:@"hermesrt.zip"]]) {
+      runtimeRoot = candidate;
+      break;
+    }
+  }
   if (runtimeRoot.length == 0) {
-    runtimeRoot = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    runtimeRoot = runtimeRoots.firstObject;
   }
   if (runtimeRoot.length == 0) return bundledRuntime;
-  NSFileManager *fileManager = [NSFileManager defaultManager];
   [fileManager createDirectoryAtPath:runtimeRoot withIntermediateDirectories:YES attributes:nil error:nil];
   NSString *localRuntime = [runtimeRoot stringByAppendingPathComponent:@"hermesrt.zip"];
   unsigned long long bundledTimestamp = 0;
