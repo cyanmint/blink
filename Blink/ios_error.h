@@ -16,6 +16,7 @@ extern "C" {
 #include <stdarg.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <sys/types.h>
   
   /* #define errx compileError
    #define err compileError
@@ -62,6 +63,12 @@ extern "C" {
   extern int ios_system(const char* inputCmd); // execute this command (executable file or builtin command)
   extern FILE *ios_popen(const char *command, const char *type); // Execute this command and pipe the result
   extern int ios_kill(void); // kill the current running command
+  // a-Shell's CPython port uses these process/environment shims on iOS.
+  extern char **environmentVariables(pid_t pid);
+  extern pid_t ios_currentPid(void);
+  extern pid_t ios_fork(void);
+  extern int ios_waitpid(pid_t pid);
+  extern pid_t ios_full_waitpid(pid_t pid, int *status, int options);
   
   extern void ios_exit(int errorCode) __dead2; // set error code and exits from the thread.
   extern int ios_execv(const char *path, char* const argv[]);
