@@ -173,6 +173,7 @@ class TermController: UIViewController {
   private var _sceneRole: UISceneSession.Role? = nil
   private var _bgColor: UIColor? = nil
   private var _fontSizeBeforeScaling: Int? = nil
+  private var _didResendInitialLayout = false
 
   @objc public var viewIsLoaded: Bool = false
 
@@ -301,7 +302,26 @@ class TermController: UIViewController {
     // reports a temporary size (often two rows) and keeps using it until the
     // next resize. Re-send SIGWINCH after every real bounds change.
     if didChangeSize {
+      _didResendInitialLayout = false
       _session?.sigwinch()
+    }
+
+    // UIPageViewController can finish its container layout one run-loop turn
+    // after this callback. Re-apply the final bounds then as well; otherwise
+    // hterm can keep the initial two-row measurement until the next rotation.
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.viewIfLoaded?.window != nil else { return }
+      self._proxyView.placeControlledView()
+      let finalSize = self.view.bounds.size
+      guard finalSize.width > 0, finalSize.height > 0 else { return }
+      let sizeChanged = self._termView.termUIState.viewSize != finalSize
+      if sizeChanged {
+        self._termView.termUIState.viewSize = finalSize
+      }
+      if sizeChanged || !self._didResendInitialLayout {
+        self._didResendInitialLayout = true
+        self._session?.sigwinch()
+      }
     }
   }
 

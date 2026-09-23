@@ -51,7 +51,14 @@ static BOOL HermesReadRuntimeTimestamp(NSString *path, unsigned long long *times
 static NSString *HermesPrepareRuntimeArchive(NSString *bundledRuntime) {
   NSFileManager *fileManager = [NSFileManager defaultManager];
   NSMutableArray<NSString *> *runtimeRoots = [NSMutableArray array];
-  const char *environmentRoots[] = { getenv("HERMES_HOME"), getenv("TERMINAL_CWD") };
+  // A runtime explicitly copied to the shell user's ~/Documents is the
+  // user-selected runtime and must win over an older cached/bundled copy.
+  const char *home = getenv("HOME");
+  if (home != NULL && home[0] != '\0') {
+    NSString *shellHomeDocuments = [[NSString stringWithUTF8String:home] stringByAppendingPathComponent:@"Documents"];
+    if (shellHomeDocuments.length > 0) [runtimeRoots addObject:shellHomeDocuments];
+  }
+  const char *environmentRoots[] = { getenv("HERMES_HOME"), getenv("TERMINAL_CWD"), getenv("HOME") };
   for (NSUInteger index = 0; index < sizeof(environmentRoots) / sizeof(environmentRoots[0]); index++) {
     if (environmentRoots[index] != NULL && environmentRoots[index][0] != '\0') {
       [runtimeRoots addObject:[NSString stringWithUTF8String:environmentRoots[index]]];
