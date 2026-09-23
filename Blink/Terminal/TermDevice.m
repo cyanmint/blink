@@ -214,10 +214,14 @@ static int __sizeOfIncompleteSequenceAtTheEnd(const char *buffer, size_t len) {
   }
   
   // Cook
-  if ([input isEqualToString:ctrlC] || [input isEqualToString:ctrlD]) {
+  NSString *ctrlZ = @"\x1a";
+  if ([input isEqualToString:ctrlC] || [input isEqualToString:ctrlD] ||
+      [input isEqualToString:ctrlZ]) {
     // [self closeReadline];
 
-    [self _EOT];
+    if (![input isEqualToString:ctrlZ]) {
+      [self _EOT];
+    }
     //if (_readlineSema) {
     if ([input isEqualToString: ctrlC]) {
       fprintf(_stream.err, "^C\n");

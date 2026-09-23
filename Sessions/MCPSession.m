@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <libgen.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <dispatch/dispatch.h>
 
@@ -529,6 +530,7 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
 {
   NSString *ctrlC = @"\x03";
   NSString *ctrlD = @"\x04";
+  NSString *ctrlZ = @"\x1a";
   
   if (_childSession) {
     if (_sshClients.count > 0) {
@@ -573,6 +575,16 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
           ios_kill();
         }
       }
+      return;
+    }
+
+    if ([control isEqualToString:ctrlZ]) {
+      // Route suspend through ios_system's session-aware signal dispatcher.
+      // It targets the command threads belonging to this terminal session,
+      // rather than raising SIGTSTP on the iOS process itself.
+      [self setActiveSession];
+      ios_signal(SIGTSTP);
+      fprintf(_stream.err, "^Z\n");
       return;
     }
   }
