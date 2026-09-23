@@ -147,37 +147,6 @@ jobs:
               assert not any(name.endswith(('.so', '.dylib', '.pyd', '.wasm')) for name in names)
           PY
 
-      - name: Run Hermes tests and hermes doctor
-        env:
-          HERMES_TEST_HOME: ${{ runner.temp }}/hermes-test-home
-        run: |
-          set -euo pipefail
-          test_root="$RUNNER_TEMP/hermes-runtime-test"
-          rm -rf "$test_root" "$HERMES_TEST_HOME"
-          mkdir -p "$test_root" "$HERMES_TEST_HOME"
-          unzip -q hermes/hermesrt.zip -d "$test_root"
-          export HOME="$HERMES_TEST_HOME"
-          export HERMES_HOME="$HERMES_TEST_HOME/.hermes"
-          export PYTHONPATH="$test_root/python:$test_root/python/site-packages:$test_root/hermes:$test_root/hermes-webui"
-
-          run_hermes_test() {
-            set +e
-            "$@"
-            status=$?
-            set -e
-            if [ "$status" -eq 139 ] || [ "$status" -eq 134 ]; then
-              echo "Hermes test crashed (exit=$status): $*" >&2
-            fi
-            return "$status"
-          }
-
-          # Import the same entry modules used by the native launcher before
-          # running doctor. A failed import or native crash must fail CI.
-          run_hermes_test python3 -c \
-            'import hermes_cli.main, hermes_cli.doctor, sitecustomize'
-          run_hermes_test python3 -m hermes_cli.main --help
-          run_hermes_test python3 -m hermes_cli.main doctor
-
       - name: Publish hermesrt.zip to fixed release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -264,6 +233,42 @@ jobs:
           bash hermes/build/build-native-ios.sh
           test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
           bash install_hermes_runtime.sh hermes
+
+      - name: Run Hermes tests and hermes doctor
+        env:
+          HERMES_TEST_HOME: ${{ runner.temp }}/hermes-test-home
+        run: |
+          set -euo pipefail
+          runtime_zip="$GITHUB_WORKSPACE/hermes/hermesrt.zip"
+          native_runtime="$GITHUB_WORKSPACE/hermes/Frameworks/HermesRuntime.framework/HermesRuntime"
+          test -s "$runtime_zip"
+          test -x "$native_runtime"
+          rm -rf "$HERMES_TEST_HOME"
+          mkdir -p "$HERMES_TEST_HOME"
+          export HOME="$HERMES_TEST_HOME"
+          export HERMES_HOME="$HERMES_TEST_HOME/.hermes"
+          # Keep the runtime in its ZIP, matching hermes_main's module search
+          # paths. Do not extract it: extraction would skip zipimport behavior.
+          export PYTHONPATH="$runtime_zip:$runtime_zip/python:$runtime_zip/hermes:$runtime_zip/hermes-webui:$runtime_zip/python/site-packages"
+
+          run_hermes_test() {
+            set +e
+            "$@"
+            status=$?
+            set -e
+            if [ "$status" -eq 139 ] || [ "$status" -eq 134 ]; then
+              echo "Hermes test crashed (exit=$status): $*" >&2
+            fi
+            return "$status"
+          }
+
+          # The native framework is built immediately before this step. The
+          # Python entrypoint runs against the exact ZIP shipped beside it;
+          # imports and doctor failures therefore block the macOS app stage.
+          run_hermes_test python3 -c \
+            'import hermes_cli.main, hermes_cli.doctor, sitecustomize'
+          run_hermes_test python3 -m hermes_cli.main --help
+          run_hermes_test python3 -m hermes_cli.main doctor
 
       - name: Cache framework builds
         id: cache
