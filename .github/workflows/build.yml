@@ -89,7 +89,7 @@ jobs:
                 ;;
             esac
             case "$path" in
-              Blink/*|BlinkTests/*|Settings/*|Sessions/*|Resources/*|Media.xcassets/*|*.xcodeproj/*|*.xcconfig|Frameworks/*|get_frameworks.sh|get_resources.sh|install_hermes_runtime.sh|.github/workflows/*)
+              hermes/*|Blink/*|BlinkTests/*|Settings/*|Sessions/*|Resources/*|Media.xcassets/*|*.xcodeproj/*|*.xcconfig|Frameworks/*|get_frameworks.sh|get_resources.sh|install_hermes_runtime.sh|.github/workflows/*)
                 app_changed=true
                 ;;
             esac
