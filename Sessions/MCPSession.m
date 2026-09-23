@@ -374,6 +374,7 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
   MCPSession *session = self;
   NSMutableDictionary *job = [@{ @"number": @(_nextBackgroundJobNumber++),
                                   @"command": command,
+                                  @"sessionID": sessionID,
                                   @"state": @"Running",
                                   @"completion": dispatch_semaphore_create(0) } mutableCopy];
   [_backgroundJobs addObject:job];
@@ -393,6 +394,7 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
       ios_setWindowSize((int)session.device.cols, (int)session.device.rows, sessionID.UTF8String);
 
       pid_t pid = ios_fork();
+      job[@"pid"] = @(pid);
       ios_system(command.UTF8String);
       ios_waitpid(pid);
       ios_releaseThreadId(pid);
@@ -579,6 +581,15 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
   } else if (_cmdStream) {
     [self setActiveSession];
     ios_kill();
+  }
+
+  @synchronized (_backgroundJobs) {
+    for (NSDictionary *job in _backgroundJobs) {
+      NSNumber *backgroundPID = job[@"pid"];
+      if (backgroundPID != nil) {
+        ios_killpid((pid_t)backgroundPID.intValue, SIGTERM);
+      }
+    }
   }
   
   ios_closeSession(_sessionUUID.UTF8String);

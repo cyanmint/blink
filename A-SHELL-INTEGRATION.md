@@ -41,7 +41,10 @@ its background-command dispatch table. HermesLink additionally splits only
 unquoted standalone `&` operators and runs those commands on isolated
 a-Shell sessions; `&&`, `&>`, `&|`, and `|&` remain untouched for the upstream
 parser. This provides background execution without changing Blink's terminal
-input, gesture, or Smart Keys path.
+input, gesture, or Smart Keys path. Blink's `jobs`, `fg`, and `bg` commands now
+track those HermesLink-created background jobs; `fg` waits for completion and
+`bg` selects an already-running job. True stop-and-resume job control still
+requires thread-level suspend/resume support in `ios_system`.
 
 ## HermesLink-created glue
 
