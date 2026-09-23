@@ -47,7 +47,7 @@ upstream a-Shell material above is not covered by that statement.
 pinned checkout and is retained as third-party legal material, not glue code.
 
 The command dictionaries now expose `python3` through the embedded Hermes
-runtime and expose a-Shell's `wasm3` command through the existing
+runtime and expose a-Shell's `wasm3` command through the main command dictionary using the existing
 `shell.framework/shell` target used by Blink. `wasmkit` remains target-gated
 because the pinned a-Shell project only provides it for newer iOS versions and
 HermesLink does not yet carry the corresponding framework.
