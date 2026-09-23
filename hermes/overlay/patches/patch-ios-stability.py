@@ -28,12 +28,24 @@ def patch_process_title(path: Path) -> None:
     path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8", newline="\n")
 
 
+def patch_ios_terminal(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    old = "    if not sys.stdin.isatty():\n"
+    new = "    if not sys.stdin.isatty() and os.environ.get(\"HERMES_IOS_TERMINAL\") != \"1\":\n"
+    if new in text:
+        return
+    if old not in text:
+        raise SystemExit(f"interactive terminal guard not found: {path}")
+    path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         raise SystemExit("usage: patch-ios-stability.py <staging-hermes-root>")
     root = Path(sys.argv[1])
     patch_usage_pricing(root / "agent" / "usage_pricing.py")
     patch_process_title(root / "hermes_cli" / "main.py")
+    patch_ios_terminal(root / "hermes_cli" / "main.py")
     return 0
 
 

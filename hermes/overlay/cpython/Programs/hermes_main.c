@@ -74,15 +74,20 @@ static void flush_python_stdio(void) {
 
 static int configure_python_stdio(void) {
     typedef int (*output_fd_fn)(int);
+    typedef int (*input_fd_fn)(void);
     output_fd_fn output_fd = (output_fd_fn)dlsym(RTLD_DEFAULT, "HermesLinkOutputFD");
+    input_fd_fn input_fd = (input_fd_fn)dlsym(RTLD_DEFAULT, "HermesLinkInputFD");
+    int stdin_fd = input_fd == NULL ? STDIN_FILENO : input_fd();
+    if (stdin_fd < 0) stdin_fd = STDIN_FILENO;
     int stdout_fd = output_fd == NULL ? STDOUT_FILENO : output_fd(0);
     int stderr_fd = output_fd == NULL ? STDERR_FILENO : output_fd(1);
-    char script[512];
+    char script[768];
     snprintf(script, sizeof(script),
         "import io, os, sys\n"
+        "sys.stdin = io.TextIOWrapper(os.fdopen(os.dup(%d), 'rb'), encoding='utf-8', errors='replace', line_buffering=True)\n"
         "sys.stdout = io.TextIOWrapper(os.fdopen(os.dup(%d), 'wb'), encoding='utf-8', errors='backslashreplace', line_buffering=True)\n"
         "sys.stderr = io.TextIOWrapper(os.fdopen(os.dup(%d), 'wb'), encoding='utf-8', errors='backslashreplace', line_buffering=True)\n",
-        stdout_fd, stderr_fd);
+        stdin_fd, stdout_fd, stderr_fd);
     int result = PyRun_SimpleString(script);
     if (result != 0) {
         PyErr_Clear();
@@ -95,6 +100,7 @@ int hermes_register_native_modules(void);
 
 __attribute__((visibility("default")))
 int hermes_runtime_main(int argc, char **argv) {
+    setenv("HERMES_IOS_TERMINAL", "1", 1);
     const char *runtime_root = getenv("HERMES_RUNTIME_ROOT");
     char runtime_path[PATH_MAX];
     if (runtime_root == NULL || runtime_root[0] == '\0') runtime_root = ".";
