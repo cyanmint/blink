@@ -99,6 +99,12 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
 }
 
 
+@interface MCPSession ()
+- (void)_runBackgroundCommand:(NSString *)command;
+- (NSMutableDictionary *)_jobForArgument:(NSString *)argument;
+- (void)_printJobs;
+@end
+
 @implementation MCPSession {
   NSString * _sessionUUID;
   Session *_childSession;
@@ -111,10 +117,6 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
   NSMutableArray<NSMutableDictionary *> *_backgroundJobs;
   NSUInteger _nextBackgroundJobNumber;
 }
-
-- (void)_runBackgroundCommand:(NSString *)command;
-- (NSMutableDictionary *)_jobForArgument:(NSString *)argument;
-- (void)_printJobs;
 
 @dynamic sessionParams;
 
