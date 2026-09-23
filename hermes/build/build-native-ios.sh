@@ -165,7 +165,7 @@ for line in lines:
         continue
     for token in line.split()[1:]:
         if token.endswith(".c"):
-            source_path = token[2:] if token.startswith("$(srcdir)/") else token
+            source_path = token.removeprefix("$(srcdir)/") if token.startswith("$(srcdir)/") else token
             objects.append("Modules/" + source_path[:-2] + ".o")
 objects = sorted(set(objects))
 pathlib.Path(pathlib.Path(makefile).parent / "native-module-objects.txt").write_text("\n".join(objects) + "\n")
@@ -246,6 +246,42 @@ PY
   printf '%s\n' Modules/arraymodule.o >> native-module-objects.filtered && \
   printf '%s\n' Modules/_randommodule.o >> native-module-objects.filtered && \
   sort -u native-module-objects.filtered > native-module-objects.txt)
+(cd "$TARGET_ROOT" && python3 - "$TARGET_ROOT/Modules/Setup.local" native-module-objects.txt "$BUILD_ROOT/native_modules.c" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+setup, objects_file, output = map(Path, sys.argv[1:])
+objects = set(objects_file.read_text(encoding="utf-8").splitlines())
+modules = []
+for raw in setup.read_text(encoding="utf-8").splitlines():
+    line = raw.split("#", 1)[0].strip()
+    if not line or line.startswith("*"):
+        continue
+    fields = line.split()
+    name = fields[0]
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        continue
+    source_objects = []
+    for token in fields[1:]:
+        if token.endswith(".c"):
+            source = token.removeprefix("$(srcdir)/") if token.startswith("$(srcdir)/") else token
+            source = source.removeprefix("./")
+            object_path = source[:-2] + ".o"
+            source_objects.append(object_path if object_path.startswith("Modules/") else "Modules/" + object_path)
+    if any(source in objects for source in source_objects):
+        modules.append(name)
+modules = sorted(set(modules))
+with output.open("w", encoding="utf-8", newline="\n") as stream:
+    stream.write("#include <Python.h>\n")
+    for name in modules:
+        stream.write(f"PyMODINIT_FUNC PyInit_{name}(void);\n")
+    stream.write("\nint hermes_register_native_modules(void) {\n")
+    for name in modules:
+        stream.write(f'    PyImport_AppendInittab("{name}", PyInit_{name});\n')
+    stream.write("    return 0;\n}\n")
+PY
+)
 (cd "$TARGET_ROOT" && \
   "$TOOLBIN/arm64-apple-ios-clang" -I"$TARGET_ROOT" -I"$TARGET_ROOT/Include" \
     -c "$BUILD_ROOT/native_modules.c" -o native_modules.o && \
