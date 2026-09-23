@@ -279,9 +279,8 @@ jobs:
           set -euo pipefail
           app="$(find "$RUNNER_TEMP/HermesLink.xcarchive/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
           test -n "$app"
-          mkdir -p "$app/Resources"
-          install -m 644 runtime-artifact/hermesrt.zip "$app/Resources/hermesrt.zip"
-          test -s "$app/Resources/hermesrt.zip"
+          install -m 644 runtime-artifact/hermesrt.zip "$app/hermesrt.zip"
+          test -s "$app/hermesrt.zip"
 
       - name: Package IPA
         run: |
@@ -301,7 +300,7 @@ jobs:
           (cd "$RUNNER_TEMP" && /usr/bin/zip -qry -X HermesLink.ipa Payload)
           unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -Fx 'Payload/HermesLink.app/Info.plist'
           unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -Fx 'Payload/HermesLink.app/HermesLink'
-          unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -Fx 'Payload/HermesLink.app/Resources/hermesrt.zip'
+          unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -Fx 'Payload/HermesLink.app/hermesrt.zip'
           unzip -Z1 "$RUNNER_TEMP/HermesLink.ipa" | grep -Fx 'Payload/HermesLink.app/Frameworks/HermesRuntime.framework/HermesRuntime'
 
       - name: Upload universal HermesLink IPA
