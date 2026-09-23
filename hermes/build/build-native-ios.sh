@@ -150,13 +150,25 @@ path = Path(__import__("sys").argv[1])
 text = path.read_text(encoding="utf-8")
 path.write_text(text.replace("Python.framework/Python", ""), encoding="utf-8", newline="\n")
 PY
-python3 - "$TARGET_ROOT/Modules/Setup.stdlib" "$TARGET_ROOT/Modules/Setup.local" "$TARGET_ROOT/Makefile" <<'PY'
+python3 - "$TARGET_ROOT/Modules/Setup.stdlib" "$TARGET_ROOT/Modules/Setup.local" "$TARGET_ROOT/Makefile" "$OPENSSL_INSTALL" <<'PY'
 import pathlib, sys
-source, target, makefile = sys.argv[1:]
+source, target, makefile, openssl_install = sys.argv[1:]
 lines = pathlib.Path(source).read_text().splitlines()
 for i, line in enumerate(lines):
     if line.strip() == "*shared*": lines[i] = "*static*"
     if line.startswith("_decimal "): lines[i] += " -IModules/_decimal/libmpdec Modules/_decimal/libmpdec/libmpdec.a"
+# These modules are intentionally not emitted by every cross-build configure
+# probe, but they are required by the bundled Hermes code.  Keep them static
+# and in the same archive as the rest of CPython instead of shipping .so files.
+existing = {line.split()[0] for line in lines if line.strip() and not line.lstrip().startswith("#")}
+required = [
+    ("_opcode", "_opcode Modules/_opcode.c"),
+    ("_ssl", f"_ssl Modules/_ssl.c -DOPENSSL_THREADS -I{openssl_install}/include"),
+    ("_hashlib", f"_hashlib Modules/_hashopenssl.c -DOPENSSL_THREADS -I{openssl_install}/include"),
+]
+for name, line in required:
+    if name not in existing:
+        lines.append(line)
 pathlib.Path(target).write_text("\n".join(lines) + "\n")
 objects = []
 for line in lines:
