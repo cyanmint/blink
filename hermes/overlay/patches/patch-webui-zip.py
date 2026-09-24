@@ -21,11 +21,31 @@ PORT = int(_cli_override("--port", os.getenv("HERMES_WEBUI_PORT", "8787")))
 '''
 if host_anchor in text:
     text = text.replace(host_anchor, host_replacement, 1)
-if "_BUNDLED_STATIC_ROOT" not in text:
+if "_runtime_zip_archives" not in text:
     old = '''def get_static_root() -> Path:
     return REPO_ROOT / "static"
 '''
     new = '''_BUNDLED_STATIC_ROOT: Path | None = None
+
+
+def _runtime_zip_archives():
+    """Yield usable runtime archives without resolving zipimport pseudo-paths."""
+    origins = [str(getattr(sys.modules.get(__name__), "__file__", "")),
+               *(str(entry) for entry in sys.path)]
+    seen = set()
+    for origin in origins:
+        normalized = origin.replace("\\\\", "/")
+        if ".zip/" in normalized:
+            archive = Path(normalized.split(".zip/", 1)[0] + ".zip")
+        elif normalized.endswith(".zip"):
+            archive = Path(normalized)
+        else:
+            continue
+        key = str(archive)
+        if key in seen or not archive.is_file():
+            continue
+        seen.add(key)
+        yield archive
 
 
 def get_static_root() -> Path:
@@ -36,78 +56,105 @@ def get_static_root() -> Path:
         return direct
     if _BUNDLED_STATIC_ROOT is not None:
         return _BUNDLED_STATIC_ROOT
-    origins = [str(Path(__file__).resolve()), *(str(entry) for entry in sys.path)]
-    marker = ".zip/"
-    origin = next((entry for entry in origins if marker in entry or entry.endswith(".zip")), "")
-    if not origin:
-        return direct
-    if marker in origin:
-        archive_name, inside = origin.split(marker, 1)
-        archive = Path(archive_name + ".zip")
-    else:
-        archive = Path(origin)
-        inside = "hermes-webui/api/config.py"
-    if not archive.is_file():
-        return direct
-    prefix = inside.split("api/", 1)[0] + "static/"
-    target = Path(os.getenv("HERMES_HOME", str(archive.parent))) / "webui"
-    import zipfile
-    try:
-        with zipfile.ZipFile(archive) as bundle:
-            for name in bundle.namelist():
-                if not name.startswith(prefix) or name.endswith("/"):
-                    continue
-                destination = target / name[len(prefix):]
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                if not destination.exists() or destination.stat().st_size != bundle.getinfo(name).file_size:
-                    destination.write_bytes(bundle.read(name))
-    except (OSError, KeyError, zipfile.BadZipFile):
-        return direct
-    if (target / "index.html").is_file():
-        _BUNDLED_STATIC_ROOT = target
-        return target
+    target = Path(os.getenv("HERMES_HOME", str(_DEFAULT_HERMES_HOME))).expanduser() / "webui"
+    target_root = target.resolve()
+    prefix = "hermes-webui/static/"
+    for archive in _runtime_zip_archives():
+        try:
+            with zipfile.ZipFile(archive) as bundle:
+                for name in bundle.namelist():
+                    if not name.startswith(prefix) or name.endswith("/"):
+                        continue
+                    relative_parts = name[len(prefix):].replace("\\\\", "/").split("/")
+                    if (not relative_parts
+                            or any(part in ("", ".", "..") or ":" in part
+                                   for part in relative_parts)):
+                        continue
+                    destination = target_root.joinpath(*relative_parts)
+                    try:
+                        destination = destination.resolve()
+                        destination.relative_to(target_root)
+                    except (OSError, ValueError):
+                        continue
+                    contents = bundle.read(name)
+                    if destination.is_file() and destination.read_bytes() == contents:
+                        continue
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_bytes(contents)
+            if (target / "index.html").is_file():
+                _BUNDLED_STATIC_ROOT = target
+                return target
+        except (OSError, KeyError, zipfile.BadZipFile):
+            continue
     return direct
 '''
-    if old not in text:
-        raise SystemExit("get_static_root patch anchor not found")
-    text = text.replace(old, new, 1)
+    if old in text:
+        text = text.replace(old, new, 1)
+    else:
+        previous_start = text.find("_BUNDLED_STATIC_ROOT: Path | None = None")
+        if previous_start < 0:
+            raise SystemExit("get_static_root patch anchor not found")
+        next_function = text.find("\ndef ", previous_start)
+        if next_function < 0:
+            raise SystemExit("end of existing get_static_root patch not found")
+        text = text[:previous_start] + new + text[next_function + 1:]
 
 # Inject at the start of the discovery function, before filesystem candidates.
 anchor = 'def _discover_agent_dir() -> Path:\n'
 injection = '''def _discover_agent_dir() -> Path:
     # WebUI discovery requires a real source directory, not the runtime ZIP.
-    _origins = [str(getattr(sys.modules.get(__name__), "__file__", "")),
-                *(str(_entry) for _entry in sys.path)]
-    _zip_marker = ".zip/"
-    _origin = next((entry for entry in _origins
-                    if _zip_marker in entry or entry.endswith(".zip")), "")
-    if _origin:
-        _archive = (Path(_origin.split(_zip_marker, 1)[0] + ".zip")
-                    if _zip_marker in _origin else Path(_origin))
+    _explicit = os.getenv("HERMES_WEBUI_AGENT_DIR")
+    if _explicit:
+        _explicit_path = Path(_explicit).expanduser().resolve()
+        if _explicit_path.exists() and _looks_like_agent_source_root(_explicit_path):
+            return _explicit_path
+    _target = Path(os.getenv("HERMES_HOME", str(_DEFAULT_HERMES_HOME))).expanduser() / "hermes-agent"
+    _target_root = _target.resolve()
+    for _archive in _runtime_zip_archives():
         _prefix = "hermes/"
-        _target = Path(os.getenv("HERMES_HOME", str(Path.home()))).expanduser() / "hermes-agent"
         try:
             with zipfile.ZipFile(_archive) as _bundle:
                 _names = [name for name in _bundle.namelist()
                           if name.startswith(_prefix) and not name.endswith("/")]
-                if "hermes/run_agent.py" not in _names:
+                if ("hermes/run_agent.py" not in _names
+                        or "hermes/hermes_cli/main.py" not in _names):
                     raise KeyError("bundled Hermes Agent entrypoint is missing")
                 for _name in _names:
-                    _relative = Path(*_name[len(_prefix):].split("/"))
-                    if _relative.is_absolute() or ".." in _relative.parts:
+                    _relative_parts = _name[len(_prefix):].replace("\\\\", "/").split("/")
+                    if (not _relative_parts
+                            or any(_part in ("", ".", "..") or ":" in _part
+                                   for _part in _relative_parts)):
                         continue
-                    _destination = _target / _relative
+                    _destination = _target_root.joinpath(*_relative_parts)
+                    try:
+                        _destination = _destination.resolve()
+                        _destination.relative_to(_target_root)
+                    except (OSError, ValueError):
+                        continue
                     _destination.parent.mkdir(parents=True, exist_ok=True)
                     with _bundle.open(_name) as _source, _destination.open("wb") as _sink:
                         _sink.write(_source.read())
-            if (_target / "run_agent.py").is_file():
-                return _target.resolve()
+            _entrypoints = (
+                _target_root / "run_agent.py",
+                _target_root / "hermes_cli" / "main.py",
+            )
+            if all(
+                    _entrypoint.is_file()
+                    and _entrypoint.resolve().is_relative_to(_target_root)
+                    for _entrypoint in _entrypoints):
+                return _target_root
         except (OSError, KeyError, zipfile.BadZipFile):
-            pass
+            continue
 '''
-if 'WebUI discovery requires a real source directory, not the runtime ZIP.' not in text:
-    if anchor not in text:
+if '    _explicit = os.getenv("HERMES_WEBUI_AGENT_DIR")' not in text:
+    function_start = text.find(anchor)
+    if function_start < 0:
         raise SystemExit("agent discovery anchor not found")
-    text = text.replace(anchor, injection, 1)
+    body_start = function_start + len(anchor)
+    docstring_start = text.find('    """', body_start)
+    if docstring_start > body_start:
+        text = text[:function_start] + injection + text[docstring_start:]
+    else:
+        text = text.replace(anchor, injection, 1)
 
 path.write_text(text, encoding="utf-8", newline="\n")
