@@ -75,10 +75,7 @@ def get_static_root() -> Path:
 # Inject at the start of the discovery function, before filesystem candidates.
 anchor = 'def _discover_agent_dir() -> Path:\n'
 injection = '''def _discover_agent_dir() -> Path:
-    # The bundled agent lives in the outer hermesrt.zip.  Keep it in the ZIP;
-    # the native launcher already exposes the archive's hermes/ root on
-    # sys.path.  Returning the archive lets the existing WebUI import path and
-    # diagnostics recognize the bundled source without duplicating it on disk.
+    # WebUI discovery requires a real source directory, not the runtime ZIP.
     _origins = [str(getattr(sys.modules.get(__name__), "__file__", "")),
                 *(str(_entry) for _entry in sys.path)]
     _zip_marker = ".zip/"
@@ -88,15 +85,27 @@ injection = '''def _discover_agent_dir() -> Path:
         _archive = (Path(_origin.split(_zip_marker, 1)[0] + ".zip")
                     if _zip_marker in _origin else Path(_origin))
         _prefix = "hermes/"
+        _target = Path(os.getenv("HERMES_HOME", str(Path.home()))).expanduser() / "hermes-agent"
         try:
             with zipfile.ZipFile(_archive) as _bundle:
-                _names = set(_bundle.namelist())
-            if "hermes/run_agent.py" in _names or "hermes/cron/jobs.py" in _names:
-                return _archive.resolve()
+                _names = [name for name in _bundle.namelist()
+                          if name.startswith(_prefix) and not name.endswith("/")]
+                if "hermes/run_agent.py" not in _names:
+                    raise KeyError("bundled Hermes Agent entrypoint is missing")
+                for _name in _names:
+                    _relative = Path(*_name[len(_prefix):].split("/"))
+                    if _relative.is_absolute() or ".." in _relative.parts:
+                        continue
+                    _destination = _target / _relative
+                    _destination.parent.mkdir(parents=True, exist_ok=True)
+                    with _bundle.open(_name) as _source, _destination.open("wb") as _sink:
+                        _sink.write(_source.read())
+            if (_target / "run_agent.py").is_file():
+                return _target.resolve()
         except (OSError, KeyError, zipfile.BadZipFile):
             pass
 '''
-if 'The bundled agent lives in the outer hermesrt.zip.' not in text:
+if 'WebUI discovery requires a real source directory, not the runtime ZIP.' not in text:
     if anchor not in text:
         raise SystemExit("agent discovery anchor not found")
     text = text.replace(anchor, injection, 1)
