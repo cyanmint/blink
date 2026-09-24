@@ -188,6 +188,9 @@ python3 - "$TARGET_ROOT/Modules/Setup_iOS.local" "$TARGET_ROOT/Modules/Setup.loc
 import pathlib, sys
 source, target, makefile = sys.argv[1:]
 lines = pathlib.Path(source).read_text().splitlines()
+optional_unavailable = {"_bz2", "_lzma", "_dbm", "_ctypes"}
+lines = [line for line in lines
+         if not line.strip().startswith(tuple(name + " " for name in optional_unavailable))]
 for i, line in enumerate(lines):
     if line.strip() == "*shared*": lines[i] = "*static*"
     if line.startswith("_decimal "): lines[i] += " -IModules/_decimal/libmpdec Modules/_decimal/libmpdec/libmpdec.a"
@@ -262,6 +265,7 @@ from pathlib import Path
 
 setup, objects_file, output, manifest = map(Path, sys.argv[1:])
 objects = set(objects_file.read_text(encoding="utf-8").splitlines())
+optional_unavailable = {"_bz2", "_lzma", "_dbm", "_ctypes"}
 module_specs = []
 for line in setup.read_text(encoding="utf-8").splitlines():
     line = line.split("#", 1)[0].strip()
@@ -270,6 +274,8 @@ for line in setup.read_text(encoding="utf-8").splitlines():
     fields = line.split()
     name = fields[0]
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        continue
+    if name in optional_unavailable:
         continue
     # Setup_iOS.local also contains CPython's test extensions.  They are not
     # part of Hermes and pull in test-only dependencies; every production
