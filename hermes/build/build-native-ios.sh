@@ -190,7 +190,11 @@ source, target, makefile = sys.argv[1:]
 lines = pathlib.Path(source).read_text().splitlines()
 optional_unavailable = {"_decimal", "_bz2", "_lzma", "_dbm", "_ctypes"}
 lines = [line for line in lines
-         if not line.strip().startswith(tuple(name + " " for name in optional_unavailable))]
+         if not line.strip().startswith(tuple(name + " " for name in optional_unavailable))
+         and not (line.strip() and not line.lstrip().startswith("#")
+                  and (line.split()[0] == "xxsubtype"
+                       or line.split()[0].startswith("_test")
+                       or line.split()[0] == "_xxtestfuzz"))]
 for i, line in enumerate(lines):
     if line.strip() == "*shared*": lines[i] = "*static*"
 
