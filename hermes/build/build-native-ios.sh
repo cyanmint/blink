@@ -242,7 +242,7 @@ if not objects:
 output.write_text("\n".join(sorted(objects)) + "\n", encoding="utf-8", newline="\n")
 PY
 (cd "$TARGET_ROOT" && \
-  PATH="$TOOLBIN:/usr/bin:/bin" make -o Makefile -o Modules/config.c -o Modules/config.h -j"${JOBS:-16}" \
+  PATH="$TOOLBIN:/usr/bin:/bin" CPPFLAGS="-IModules/_decimal/libmpdec" make -o Makefile -o Modules/config.c -o Modules/config.h -j"${JOBS:-16}" \
     $(cat native-module-objects.txt) Modules/binascii.o Modules/_struct.o Modules/socketmodule.o Modules/selectmodule.o Modules/mathmodule.o Modules/cmathmodule.o Modules/_contextvarsmodule.o Modules/arraymodule.o Modules/_randommodule.o)
 (cd "$TARGET_ROOT" && \
   PATH="$TOOLBIN:/usr/bin:/bin" make -o Makefile -j"${JOBS:-16}" \
