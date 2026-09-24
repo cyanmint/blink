@@ -253,14 +253,14 @@ PY
   printf '%s\n' Modules/arraymodule.o >> native-module-objects.filtered && \
   printf '%s\n' Modules/_randommodule.o >> native-module-objects.filtered && \
   sort -u native-module-objects.filtered > native-module-objects.txt)
-python3 - "$TARGET_ROOT/Modules/Setup.local" "$TARGET_ROOT/native-module-objects.txt" "$BUILD_ROOT/native_modules.c" <<'PY'
+python3 - "$TARGET_ROOT/Modules/Setup.local" "$TARGET_ROOT/native-module-objects.txt" "$BUILD_ROOT/native_modules.c" "$TARGET_ROOT/native-module-manifest.txt" <<'PY'
 import re
 import sys
 from pathlib import Path
 
-setup, objects_file, output = map(Path, sys.argv[1:])
+setup, objects_file, output, manifest = map(Path, sys.argv[1:])
 objects = set(objects_file.read_text(encoding="utf-8").splitlines())
-modules = []
+module_specs = []
 for line in setup.read_text(encoding="utf-8").splitlines():
     line = line.split("#", 1)[0].strip()
     if not line or line.startswith("*"):
@@ -268,6 +268,11 @@ for line in setup.read_text(encoding="utf-8").splitlines():
     fields = line.split()
     name = fields[0]
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        continue
+    # Setup_iOS.local also contains CPython's test extensions.  They are not
+    # part of Hermes and pull in test-only dependencies; every production
+    # extension, however, must be present in the final static archive.
+    if name == "xxsubtype" or name.startswith("_test") or name == "_xxtestfuzz":
         continue
     source_objects = set()
     for token in fields[1:]:
@@ -284,9 +289,20 @@ for line in setup.read_text(encoding="utf-8").splitlines():
         if source.startswith("Modules/"):
             source = source[len("Modules/"):]
         source_objects.add("Modules/" + source[:-2] + ".o")
-    if source_objects & objects:
+    if source_objects:
+        module_specs.append((name, source_objects))
+missing = []
+modules = []
+for name, source_objects in module_specs:
+    absent = sorted(source_objects - objects)
+    if absent:
+        missing.append(f"{name}: {', '.join(absent)}")
+    else:
         modules.append(name)
+if missing:
+    raise SystemExit("configured static CPython modules were not built:\n" + "\n".join(missing))
 modules = sorted(set(modules))
+manifest.write_text("\n".join(modules) + "\n", encoding="utf-8", newline="\n")
 with output.open("w", encoding="utf-8", newline="\n") as stream:
     stream.write("#include <Python.h>\n")
     for name in modules:
