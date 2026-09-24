@@ -108,7 +108,7 @@ CC=${CC:-arm64-apple-ios-clang}
   -Wl,-force_load,"$TARGET_ROOT/Modules/expat/libexpat.a" "$BUILD_ROOT/hermes_main.o" \
   -Wl,-rpath,@loader_path -framework CoreFoundation -ldl -lpthread -lm -lz -lsqlite3 \
   -F"$IOS_SYSTEM_FRAMEWORK_DIR" -framework ios_system \
-  -L"$OPENSSL_INSTALL/lib" -lssl -lcrypto -L"$LIBFFI_INSTALL/lib" -lffi "$TARGET_ROOT/ios_compat.o" \
+  -L"$OPENSSL_INSTALL/lib" -lssl -lcrypto -Wl,-force_load,"$LIBFFI_INSTALL/lib/libffi.a" "$TARGET_ROOT/ios_compat.o" \
   -dynamiclib -install_name "@rpath/HermesRuntime.framework/HermesRuntime" \
   -Wl,-exported_symbol,_hermes_runtime_main \
   -o "$FRAMEWORK/HermesRuntime"
