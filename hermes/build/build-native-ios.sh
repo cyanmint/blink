@@ -199,7 +199,9 @@ for line in lines:
         continue
     for token in line.split()[1:]:
         if token.endswith(".c"):
-            source_path = token[2:] if token.startswith("$(srcdir)/") else token
+            source_path = token[len("$(srcdir)/"):] if token.startswith("$(srcdir)/") else token
+            if source_path.startswith("Modules/"):
+                source_path = source_path[len("Modules/"):]
             objects.append("Modules/" + source_path[:-2] + ".o")
 objects = sorted(set(objects))
 pathlib.Path(pathlib.Path(makefile).parent / "native-module-objects.txt").write_text("\n".join(objects) + "\n")
