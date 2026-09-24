@@ -148,7 +148,7 @@ from pathlib import Path
 path = Path(__import__("sys").argv[1])
 text = path.read_text()
 text = ''.join(line for line in text.splitlines(keepends=True)
-               if 'cfi_def_cfa' not in line and 'cfi_adjust_cfa_offset' not in line)
+               if 'cfi_' not in line.lower())
 path.write_text(text)
 PY
     make -j"${JOBS:-16}"
