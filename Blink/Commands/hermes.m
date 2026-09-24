@@ -9,6 +9,7 @@
 #include "ios_error.h"
 
 extern int hermes_runtime_main(int argc, char **argv);
+extern int ios_system(const char *inputCmd);
 
 static NSString * const HermesLinkDiagnosticsKey = @"HermesLinkDiagnosticsEnabled";
 
@@ -108,4 +109,15 @@ int python_main(int argc, char *argv[]) {
   int result = hermes_runtime_main(argc, argv);
   unsetenv("HERMES_PYTHON_MODE");
   return result;
+}
+
+__attribute__((visibility("default")))
+int sh_main(int argc, char *argv[]) {
+  if (argc < 3 || strcmp(argv[1], "-c") != 0) {
+    fprintf(thread_stderr, "sh: usage: sh -c command\n");
+    return 2;
+  }
+  // Delegate parsing to ios_system so quoting, pipes, redirects, and command
+  // aliases retain the same semantics as the enclosing Blink shell.
+  return ios_system(argv[2]);
 }
