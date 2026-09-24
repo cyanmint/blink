@@ -127,13 +127,15 @@ if [ ! -f "$OPENSSL_INSTALL/lib/libssl.a" ] || [ ! -f "$OPENSSL_INSTALL/lib/libc
   )
 fi
 
-if [ ! -d "$LIBFFI_ROOT/.git" ]; then
-  git clone --depth=1 --branch v3.4.6 https://github.com/libffi/libffi.git "$LIBFFI_ROOT"
+if [ ! -f "$LIBFFI_ROOT/configure" ]; then
+  rm -rf "$LIBFFI_ROOT"
+  mkdir -p "$LIBFFI_ROOT"
+  curl -fsSL https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz \
+    | tar -xz --strip-components=1 -C "$LIBFFI_ROOT"
 fi
 if [ ! -f "$LIBFFI_INSTALL/lib/libffi.a" ] || [ ! -f "$LIBFFI_INSTALL/include/ffi.h" ]; then
   (
     cd "$LIBFFI_ROOT"
-    ./autogen.sh >/dev/null
     make distclean >/dev/null 2>&1 || true
     CC="$TOOLBIN/arm64-apple-ios-clang" \
       AR="$TOOLBIN/arm64-apple-ios-ar" \
