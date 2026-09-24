@@ -138,6 +138,17 @@ fi
 BUILD_TRIPLE=$(cd "$TARGET_ROOT" && ./config.guess)
 cat > "$TARGET_ROOT/ios_compat.c" <<'EOF'
 #include <stdint.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+/* CPython's iOS port aliases waitpid to this entry point.  ios_system
+ * exports the command/session APIs, but not this CPython compatibility symbol;
+ * keep the shim limited to the POSIX wait operation and leave all other
+ * a-Shell APIs to the linked framework/host. */
+__attribute__((weak))
+pid_t ios_full_waitpid(pid_t pid, int *status, int options) {
+    return waitpid(pid, status, options);
+}
 
 /* CPython's iOS headers import the complete ios_system ABI from the host
  * application.  Do not provide local stream/process fallbacks here: doing so
