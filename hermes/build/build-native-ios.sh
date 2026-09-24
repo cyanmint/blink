@@ -188,7 +188,7 @@ python3 - "$TARGET_ROOT/Modules/Setup_iOS.local" "$TARGET_ROOT/Modules/Setup.loc
 import pathlib, sys
 source, target, makefile = sys.argv[1:]
 lines = pathlib.Path(source).read_text().splitlines()
-optional_unavailable = {"_decimal", "_bz2", "_lzma", "_dbm", "_ctypes", "fcntl", "resource", "grp", "syslog"}
+optional_unavailable = {"_decimal", "_bz2", "_lzma", "_dbm", "_ctypes", "fcntl", "resource", "grp", "syslog", "termios"}
 lines = [line for line in lines
          if not line.strip().startswith(tuple(name + " " for name in optional_unavailable))
          and not (line.strip() and not line.lstrip().startswith("#")
@@ -269,7 +269,7 @@ from pathlib import Path
 
 setup, objects_file, output, manifest = map(Path, sys.argv[1:])
 objects = set(objects_file.read_text(encoding="utf-8").splitlines())
-optional_unavailable = {"_decimal", "_bz2", "_lzma", "_dbm", "_ctypes", "fcntl", "resource", "grp", "syslog"}
+optional_unavailable = {"_decimal", "_bz2", "_lzma", "_dbm", "_ctypes", "fcntl", "resource", "grp", "syslog", "termios"}
 module_specs = []
 for line in setup.read_text(encoding="utf-8").splitlines():
     line = line.split("#", 1)[0].strip()
