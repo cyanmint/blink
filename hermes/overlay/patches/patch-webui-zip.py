@@ -75,9 +75,10 @@ def get_static_root() -> Path:
 # Inject at the start of the discovery function, before filesystem candidates.
 anchor = 'def _discover_agent_dir() -> Path:\n'
 injection = '''def _discover_agent_dir() -> Path:
-    # The bundled agent lives in the outer hermesrt.zip.  Extract it to the
-    # writable HERMES_HOME because filesystem discovery cannot inspect a
-    # zipimport package as a source directory.
+    # The bundled agent lives in the outer hermesrt.zip.  Keep it in the ZIP;
+    # the native launcher already exposes the archive's hermes/ root on
+    # sys.path.  Returning the archive lets the existing WebUI import path and
+    # diagnostics recognize the bundled source without duplicating it on disk.
     _origins = [str(getattr(sys.modules.get(__name__), "__file__", "")),
                 *(str(_entry) for _entry in sys.path)]
     _zip_marker = ".zip/"
@@ -86,19 +87,12 @@ injection = '''def _discover_agent_dir() -> Path:
     if _origin:
         _archive = (Path(_origin.split(_zip_marker, 1)[0] + ".zip")
                     if _zip_marker in _origin else Path(_origin))
-        _target = Path(os.getenv("HERMES_HOME", str(Path.home()))) / "hermes-agent"
         _prefix = "hermes/"
         try:
             with zipfile.ZipFile(_archive) as _bundle:
-                for _name in _bundle.namelist():
-                    if not _name.startswith(_prefix) or _name.endswith("/"):
-                        continue
-                    _destination = _target / _name[len(_prefix):]
-                    _destination.parent.mkdir(parents=True, exist_ok=True)
-                    with _bundle.open(_name) as _source, _destination.open("wb") as _sink:
-                        _sink.write(_source.read())
-            if (_target / "run_agent.py").is_file() or (_target / "cron" / "jobs.py").is_file():
-                return _target.resolve()
+                _names = set(_bundle.namelist())
+            if "hermes/run_agent.py" in _names or "hermes/cron/jobs.py" in _names:
+                return _archive.resolve()
         except (OSError, KeyError, zipfile.BadZipFile):
             pass
 '''
