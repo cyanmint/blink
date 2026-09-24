@@ -36,16 +36,21 @@ def get_static_root() -> Path:
         return direct
     if _BUNDLED_STATIC_ROOT is not None:
         return _BUNDLED_STATIC_ROOT
-    origin = str(Path(__file__).resolve())
+    origins = [str(Path(__file__).resolve()), *(str(entry) for entry in sys.path)]
     marker = ".zip/"
-    if marker not in origin:
+    origin = next((entry for entry in origins if marker in entry or entry.endswith(".zip")), "")
+    if not origin:
         return direct
-    archive_name, inside = origin.split(marker, 1)
-    archive = Path(archive_name + ".zip")
+    if marker in origin:
+        archive_name, inside = origin.split(marker, 1)
+        archive = Path(archive_name + ".zip")
+    else:
+        archive = Path(origin)
+        inside = "hermes-webui/api/config.py"
     if not archive.is_file():
         return direct
     prefix = inside.split("api/", 1)[0] + "static/"
-    target = Path(os.getenv("HERMES_HOME", str(archive.parent))) / ".hermes-webui-static"
+    target = Path(os.getenv("HERMES_HOME", str(archive.parent))) / "webui"
     import zipfile
     try:
         with zipfile.ZipFile(archive) as bundle:
@@ -73,10 +78,14 @@ injection = '''def _discover_agent_dir() -> Path:
     # The bundled agent lives in the outer hermesrt.zip.  Extract it to the
     # writable HERMES_HOME because filesystem discovery cannot inspect a
     # zipimport package as a source directory.
-    _origin = str(getattr(sys.modules.get(__name__), "__file__", ""))
+    _origins = [str(getattr(sys.modules.get(__name__), "__file__", "")),
+                *(str(_entry) for _entry in sys.path)]
     _zip_marker = ".zip/"
-    if _zip_marker in _origin:
-        _archive = Path(_origin.split(_zip_marker, 1)[0] + ".zip")
+    _origin = next((entry for entry in _origins
+                    if _zip_marker in entry or entry.endswith(".zip")), "")
+    if _origin:
+        _archive = (Path(_origin.split(_zip_marker, 1)[0] + ".zip")
+                    if _zip_marker in _origin else Path(_origin))
         _target = Path(os.getenv("HERMES_HOME", str(Path.home()))) / "hermes-agent"
         _prefix = "hermes/"
         try:
