@@ -140,9 +140,18 @@ if [ ! -f "$LIBFFI_INSTALL/lib/libffi.a" ] || [ ! -f "$LIBFFI_INSTALL/include/ff
     CC="$TOOLBIN/arm64-apple-ios-clang" \
       AR="$TOOLBIN/arm64-apple-ios-ar" \
       RANLIB="$TOOLBIN/arm64-apple-ios-ranlib" \
-      CFLAGS="-isysroot $SDK_ROOT -miphoneos-version-min=$DEPLOYMENT_TARGET -fno-integrated-as" \
+      CFLAGS="-isysroot $SDK_ROOT -miphoneos-version-min=$DEPLOYMENT_TARGET" \
       ./configure --host=aarch64-apple-darwin --enable-static --disable-shared \
         --disable-builddir --prefix="$LIBFFI_INSTALL"
+    python3 - "$LIBFFI_ROOT/src/aarch64/sysv.S" <<'PY'
+from pathlib import Path
+import re
+path = Path(__import__("sys").argv[1])
+text = path.read_text()
+text = re.sub(r'^\\s*\\.cfi_def_cfa x1, 40;\\n', '', text, flags=re.MULTILINE)
+text = re.sub(r'^\\s*\\.cfi_adjust_cfa_offset \\(8\\*2 \\+ \\(8 \\* 16 \\+ 8 \\* 8\\) \\+ 64\\)\\n', '', text, flags=re.MULTILINE)
+path.write_text(text)
+PY
     make -j"${JOBS:-16}"
     make install
   )
