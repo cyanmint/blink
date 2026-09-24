@@ -145,11 +145,10 @@ if [ ! -f "$LIBFFI_INSTALL/lib/libffi.a" ] || [ ! -f "$LIBFFI_INSTALL/include/ff
         --disable-builddir --prefix="$LIBFFI_INSTALL"
     python3 - "$LIBFFI_ROOT/src/aarch64/sysv.S" <<'PY'
 from pathlib import Path
-import re
 path = Path(__import__("sys").argv[1])
 text = path.read_text()
-text = re.sub(r'^\\s*\\.cfi_def_cfa x1, 40;\\n', '', text, flags=re.MULTILINE)
-text = re.sub(r'^\\s*\\.cfi_adjust_cfa_offset \\(8\\*2 \\+ \\(8 \\* 16 \\+ 8 \\* 8\\) \\+ 64\\)\\n', '', text, flags=re.MULTILINE)
+text = ''.join(line for line in text.splitlines(keepends=True)
+               if 'cfi_def_cfa' not in line and 'cfi_adjust_cfa_offset' not in line)
 path.write_text(text)
 PY
     make -j"${JOBS:-16}"
