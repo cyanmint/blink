@@ -67,36 +67,33 @@ def get_static_root() -> Path:
         raise SystemExit("get_static_root patch anchor not found")
     text = text.replace(old, new, 1)
 
-agent_marker = "# iOS ZIP runtime: the agent is importable from the outer archive.\n"
-agent_block = '''# iOS ZIP runtime: the agent is importable from the outer archive.
-if "_discover_agent_dir" in text:
-    pass
-'''
 # Inject at the start of the discovery function, before filesystem candidates.
 anchor = 'def _discover_agent_dir() -> Path:\n'
 injection = '''def _discover_agent_dir() -> Path:
-    # The bundled Agent lives inside hermesrt.zip.  Extract it to the writable
-    # HERMES_HOME so filesystem-based config/discovery code can use it on iOS.
-    _origin = str(Path(__file__).resolve())
-    if ".zip/" in _origin:
-        _archive = Path(_origin.split(".zip/", 1)[0] + ".zip")
-        _target = Path(os.getenv("HERMES_HOME", str(Path.home()))) / ".hermes-agent"
+    # The bundled agent lives in the outer hermesrt.zip.  Extract it to the
+    # writable HERMES_HOME because filesystem discovery cannot inspect a
+    # zipimport package as a source directory.
+    _origin = str(getattr(sys.modules.get(__name__), "__file__", ""))
+    _zip_marker = ".zip/"
+    if _zip_marker in _origin:
+        _archive = Path(_origin.split(_zip_marker, 1)[0] + ".zip")
+        _target = Path(os.getenv("HERMES_HOME", str(Path.home()))) / "hermes-agent"
+        _prefix = "hermes/"
         try:
             with zipfile.ZipFile(_archive) as _bundle:
-                _prefix = "hermes/"
                 for _name in _bundle.namelist():
                     if not _name.startswith(_prefix) or _name.endswith("/"):
                         continue
                     _destination = _target / _name[len(_prefix):]
                     _destination.parent.mkdir(parents=True, exist_ok=True)
-                    _data = _bundle.read(_name)
-                    if not _destination.exists() or _destination.read_bytes() != _data:
-                        _destination.write_bytes(_data)
-            return _target
+                    with _bundle.open(_name) as _source, _destination.open("wb") as _sink:
+                        _sink.write(_source.read())
+            if (_target / "run_agent.py").is_file() or (_target / "cron" / "jobs.py").is_file():
+                return _target.resolve()
         except (OSError, KeyError, zipfile.BadZipFile):
             pass
 '''
-if 'The bundled Agent lives at hermesrt.zip/hermes.' not in text:
+if 'The bundled agent lives in the outer hermesrt.zip.' not in text:
     if anchor not in text:
         raise SystemExit("agent discovery anchor not found")
     text = text.replace(anchor, injection, 1)

@@ -99,7 +99,17 @@ void __setupProcessEnv(void) {
 
   sideLoading = false; // Turn off extra commands from iOS system
   initializeEnvironment(); // initialize environment variables for iOS system
-  addCommandList([[NSBundle mainBundle] pathForResource:@"blinkCommandsDictionary" ofType:@"plist"]); // Load app-owned commands before the terminal can accept input.
+  NSString *commandDictionary = [[NSBundle mainBundle] pathForResource:@"blinkCommandsDictionary" ofType:@"plist"];
+  NSError *commandDictionaryError = addCommandList(commandDictionary);
+  if (commandDictionaryError != nil) {
+    NSLog(@"Failed to register HermesLink command dictionary: %@", commandDictionaryError);
+  }
+  // Reassert the embedded entrypoints after ios_system's command list is built.
+  // The stock a-Shell dictionary contains stale Python framework aliases; those
+  // must never win over the symbols linked into HermesRuntime.framework.
+  replaceCommand(@"python", @"python_main", false);
+  replaceCommand(@"python3", @"python_main", false);
+  replaceCommand(@"hermes", @"hermes_main", false);
   dispatch_async(bgQueue, ^{
     __setupProcessEnv(); // we should call this after ios_system initializeEnvironment to override its defaults.
     [AppDelegate _loadProfileVars];
@@ -107,14 +117,22 @@ void __setupProcessEnv(void) {
   
   NSString *homePath = BlinkPaths.homePath;
   NSString *documentsPath = [homePath stringByAppendingPathComponent:@"Documents"];
+  NSString *hermesHomePath = [documentsPath stringByAppendingPathComponent:@"hermes-home"];
   [[NSFileManager defaultManager] createDirectoryAtPath:documentsPath
+                             withIntermediateDirectories:YES
+                                              attributes:nil
+                                                   error:nil];
+  [[NSFileManager defaultManager] createDirectoryAtPath:hermesHomePath
                              withIntermediateDirectories:YES
                                               attributes:nil
                                                    error:nil];
   setenv("HOME", homePath.UTF8String, 1);
   setenv("SSH_HOME", homePath.UTF8String, 1);
   setenv("CURL_HOME", homePath.UTF8String, 1);
-  setenv("HERMES_HOME", documentsPath.UTF8String, 1);
+  setenv("HERMES_HOME", hermesHomePath.UTF8String, 1);
+  setenv("HERMES_WEBUI_DEFAULT_WORKSPACE", documentsPath.UTF8String, 1);
+  setenv("TERMINAL_CWD", documentsPath.UTF8String, 1);
+  setenv("PWD", documentsPath.UTF8String, 1);
   
   NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
   [nc addObserver:self

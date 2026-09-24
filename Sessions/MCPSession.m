@@ -155,7 +155,14 @@ static NSArray<NSString *> *MCPSplitBackgroundCommands(NSString *command) {
                                withIntermediateDirectories:YES
                                                 attributes:nil
                                                      error:nil];
-    setenv("HERMES_HOME", workspacePath.UTF8String, 1);
+    NSString *hermesHomePath = [workspacePath stringByAppendingPathComponent:@"hermes-home"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:hermesHomePath
+                               withIntermediateDirectories:YES
+                                                attributes:nil
+                                                     error:nil];
+    setenv("HERMES_HOME", hermesHomePath.UTF8String, 1);
+    setenv("HERMES_WEBUI_DEFAULT_WORKSPACE", workspacePath.UTF8String, 1);
+    setenv("TERMINAL_CWD", workspacePath.UTF8String, 1);
     setenv("PWD", workspacePath.UTF8String, 1);
     chdir(workspacePath.UTF8String);
     [self updateAllowedPaths];

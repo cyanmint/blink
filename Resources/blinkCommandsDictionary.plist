@@ -72,6 +72,34 @@
 		<string></string>
 		<string>no</string>
 	</array>
+	<key>pythonA</key>
+	<array>
+		<string>MAIN</string>
+		<string>python_main</string>
+		<string></string>
+		<string>no</string>
+	</array>
+	<key>pythonB</key>
+	<array>
+		<string>MAIN</string>
+		<string>python_main</string>
+		<string></string>
+		<string>no</string>
+	</array>
+	<key>pythonC</key>
+	<array>
+		<string>MAIN</string>
+		<string>python_main</string>
+		<string></string>
+		<string>no</string>
+	</array>
+	<key>pythonD</key>
+	<array>
+		<string>MAIN</string>
+		<string>python_main</string>
+		<string></string>
+		<string>no</string>
+	</array>
 	<key>wasm3</key>
 	<array>
 		<string>shell.framework/shell</string>
