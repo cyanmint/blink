@@ -12,6 +12,7 @@ PYTHON_LIBRARY="libpython${PYTHON_VERSION}.a"
 HOST_PYTHON=${HOST_PYTHON:-$(dirname "$TARGET_ROOT")/host-python/bin/python${PYTHON_VERSION}}
 ARCHIVE="$BUILD_ROOT/hermesrt.zip"
 OPENSSL_INSTALL=${OPENSSL_INSTALL:-$BUILD_ROOT/openssl-install}
+LIBFFI_INSTALL=${LIBFFI_INSTALL:-$BUILD_ROOT/libffi-install}
 IOS_SYSTEM_FRAMEWORK=${IOS_SYSTEM_FRAMEWORK:-$ROOT/../xcfs/.build/artifacts/xcfs/ios_system/ios_system.xcframework/ios-arm64/ios_system.framework}
 IOS_SYSTEM_FRAMEWORK_DIR=$(dirname "$IOS_SYSTEM_FRAMEWORK")
 STAGE=$(mktemp -d)
@@ -107,7 +108,7 @@ CC=${CC:-arm64-apple-ios-clang}
   -Wl,-force_load,"$TARGET_ROOT/Modules/expat/libexpat.a" "$BUILD_ROOT/hermes_main.o" \
   -Wl,-rpath,@loader_path -framework CoreFoundation -ldl -lpthread -lm -lz -lsqlite3 \
   -F"$IOS_SYSTEM_FRAMEWORK_DIR" -framework ios_system \
-  -L"$OPENSSL_INSTALL/lib" -lssl -lcrypto "$TARGET_ROOT/ios_compat.o" \
+  -L"$OPENSSL_INSTALL/lib" -lssl -lcrypto -L"$LIBFFI_INSTALL/lib" -lffi "$TARGET_ROOT/ios_compat.o" \
   -dynamiclib -install_name "@rpath/HermesRuntime.framework/HermesRuntime" \
   -Wl,-exported_symbol,_hermes_runtime_main \
   -o "$FRAMEWORK/HermesRuntime"

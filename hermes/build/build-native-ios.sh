@@ -29,6 +29,8 @@ CPYTHON_REF=${CPYTHON_REF:-0c3aa6418f2f8d874e1be62e45226af002bbcc8d}
 OPENSSL_REF=${OPENSSL_REF:-openssl-3.3.2}
 OPENSSL_ROOT=${OPENSSL_ROOT:-$BUILD_ROOT/openssl}
 OPENSSL_INSTALL=${OPENSSL_INSTALL:-$BUILD_ROOT/openssl-install}
+LIBFFI_ROOT=${LIBFFI_ROOT:-$BUILD_ROOT/libffi}
+LIBFFI_INSTALL=${LIBFFI_INSTALL:-$BUILD_ROOT/libffi-install}
 TARGET_ROOT=${TARGET_ROOT:-$BUILD_ROOT/target}
 TOOLBIN=$BUILD_ROOT/bin
 IOS_SYSTEM_FRAMEWORK=${IOS_SYSTEM_FRAMEWORK:-$ROOT/../xcfs/.build/artifacts/xcfs/ios_system/ios_system.xcframework/ios-arm64/ios_system.framework}
@@ -125,6 +127,25 @@ if [ ! -f "$OPENSSL_INSTALL/lib/libssl.a" ] || [ ! -f "$OPENSSL_INSTALL/lib/libc
   )
 fi
 
+if [ ! -d "$LIBFFI_ROOT/.git" ]; then
+  git clone --depth=1 --branch v3.4.6 https://github.com/libffi/libffi.git "$LIBFFI_ROOT"
+fi
+if [ ! -f "$LIBFFI_INSTALL/lib/libffi.a" ] || [ ! -f "$LIBFFI_INSTALL/include/ffi.h" ]; then
+  (
+    cd "$LIBFFI_ROOT"
+    ./autogen.sh >/dev/null
+    make distclean >/dev/null 2>&1 || true
+    CC="$TOOLBIN/arm64-apple-ios-clang" \
+      AR="$TOOLBIN/arm64-apple-ios-ar" \
+      RANLIB="$TOOLBIN/arm64-apple-ios-ranlib" \
+      CFLAGS="-isysroot $SDK_ROOT -miphoneos-version-min=$DEPLOYMENT_TARGET" \
+      ./configure --host=arm-apple-darwin --enable-static --disable-shared \
+        --disable-builddir --prefix="$LIBFFI_INSTALL"
+    make -j"${JOBS:-16}"
+    make install
+  )
+fi
+
 TARGET_ROOT=$BUILD_ROOT/target-cpython
 TARGET_STAMP="$TARGET_ROOT/.hermes-cpython-ref"
 if [ ! -f "$TARGET_STAMP" ] || [ "$(cat "$TARGET_STAMP")" != "$CPYTHON_REF" ]; then
@@ -166,12 +187,12 @@ clang --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT" \
   -c "$TARGET_ROOT/ios_compat.c" -o "$TARGET_ROOT/ios_compat.o"
 (cd "$TARGET_ROOT" && \
   PATH="$TOOLBIN:/usr/bin:/bin" CC=arm64-apple-ios-clang AR=arm64-apple-ios-ar RANLIB=arm64-apple-ios-ranlib \
-    CPPFLAGS="-DOPENSSL_THREADS -I$OPENSSL_INSTALL/include -I$ROOT/../Blink" \
-    LDFLAGS="-L$OPENSSL_INSTALL/lib -F$IOS_SYSTEM_FRAMEWORK_DIR -framework ios_system" \
-    LIBS="$TARGET_ROOT/ios_compat.o -lssl -lcrypto -F$IOS_SYSTEM_FRAMEWORK_DIR -framework ios_system" \
+    CPPFLAGS="-DOPENSSL_THREADS -I$OPENSSL_INSTALL/include -I$LIBFFI_INSTALL/include -I$ROOT/../Blink" \
+    LDFLAGS="-L$OPENSSL_INSTALL/lib -L$LIBFFI_INSTALL/lib -F$IOS_SYSTEM_FRAMEWORK_DIR -framework ios_system" \
+    LIBS="$TARGET_ROOT/ios_compat.o -lssl -lcrypto -lffi -F$IOS_SYSTEM_FRAMEWORK_DIR -framework ios_system" \
     py_cv_module__lzma=n/a py_cv_module__bz2=n/a py_cv_module__dbm=n/a \
     py_cv_module__gdbm=n/a py_cv_module_readline=n/a py_cv_module__curses=n/a \
-    py_cv_module__curses_panel=n/a py_cv_module__blake2=n/a py_cv_module__ctypes=n/a \
+    py_cv_module__curses_panel=n/a py_cv_module__blake2=n/a \
     py_cv_module__decimal=n/a \
     py_cv_module__elementtree=n/a py_cv_module__uuid=n/a \
     ./configure --host=arm64-apple-ios${DEPLOYMENT_TARGET} \
@@ -188,7 +209,7 @@ python3 - "$TARGET_ROOT/Modules/Setup_iOS.local" "$TARGET_ROOT/Modules/Setup.loc
 import pathlib, sys
 source, target, makefile = sys.argv[1:]
 lines = pathlib.Path(source).read_text().splitlines()
-optional_unavailable = {"_decimal", "_bz2", "_lzma", "_dbm", "_ctypes", "fcntl", "resource", "grp", "syslog", "termios"}
+optional_unavailable = {"_decimal", "_bz2", "_lzma", "_dbm", "fcntl", "resource", "grp", "syslog", "termios"}
 lines = [line for line in lines
          if not line.strip().startswith(tuple(name + " " for name in optional_unavailable))
          and not (line.strip() and not line.lstrip().startswith("#")
@@ -269,7 +290,7 @@ from pathlib import Path
 
 setup, objects_file, output, manifest = map(Path, sys.argv[1:])
 objects = set(objects_file.read_text(encoding="utf-8").splitlines())
-optional_unavailable = {"_decimal", "_bz2", "_lzma", "_dbm", "_ctypes", "fcntl", "resource", "grp", "syslog", "termios"}
+optional_unavailable = {"_decimal", "_bz2", "_lzma", "_dbm", "fcntl", "resource", "grp", "syslog", "termios"}
 module_specs = []
 for line in setup.read_text(encoding="utf-8").splitlines():
     line = line.split("#", 1)[0].strip()
