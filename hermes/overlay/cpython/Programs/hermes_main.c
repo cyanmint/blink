@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <dlfcn.h>
+#include <pthread.h>
 
 static void report_runtime_message(const char *message) {
     typedef void (*append_log_fn)(const char *);
@@ -76,8 +77,7 @@ static void flush_python_stdio(void) {
 
 int hermes_register_native_modules(void);
 
-__attribute__((visibility("default")))
-int hermes_runtime_main(int argc, char **argv) {
+static int hermes_runtime_main_impl(int argc, char **argv) {
     setenv("HERMES_IOS_TERMINAL", "1", 1);
     const char *runtime_root = getenv("HERMES_RUNTIME_ROOT");
     char runtime_path[PATH_MAX];
@@ -291,5 +291,22 @@ int hermes_runtime_main(int argc, char **argv) {
     Py_FinalizeEx();
     PyConfig_Clear(&config);
     free(python_argv);
+    return result;
+}
+
+/* CPython's process-global runtime cannot be initialized/finalized by two
+ * ios_system command threads at the same time. Serialize the complete
+ * interpreter lifetime so concurrent python/python3 commands cannot finalize
+ * one another's interpreter. */
+__attribute__((visibility("default")))
+int hermes_runtime_main(int argc, char **argv) {
+    static pthread_mutex_t runtime_mutex = PTHREAD_MUTEX_INITIALIZER;
+    int lock_result = pthread_mutex_lock(&runtime_mutex);
+    if (lock_result != 0) {
+        report_runtime_message("hermes: unable to lock runtime");
+        return 70;
+    }
+    int result = hermes_runtime_main_impl(argc, argv);
+    pthread_mutex_unlock(&runtime_mutex);
     return result;
 }
