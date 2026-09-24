@@ -211,7 +211,7 @@ path = Path(__import__("sys").argv[1])
 text = path.read_text(encoding="utf-8")
 path.write_text(text.replace("Python.framework/Python", ""), encoding="utf-8", newline="\n")
 PY
-python3 - "$TARGET_ROOT/Modules/Setup.stdlib" "$TARGET_ROOT/Modules/Setup.local" "$TARGET_ROOT/Makefile" <<'PY'
+python3 - "$TARGET_ROOT/Modules/Setup_iOS.local" "$TARGET_ROOT/Modules/Setup.local" "$TARGET_ROOT/Makefile" <<'PY'
 import pathlib, sys
 source, target, makefile = sys.argv[1:]
 lines = pathlib.Path(source).read_text().splitlines()
@@ -296,11 +296,21 @@ for line in setup.read_text(encoding="utf-8").splitlines():
     name = fields[0]
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
         continue
-    source_objects = {
-        "Modules/" + token[2:-2] + ".o"
-        for token in fields[1:]
-        if token.endswith(".c") and token.startswith("$(srcdir)/")
-    }
+    source_objects = set()
+    for token in fields[1:]:
+        if not token.endswith(".c"):
+            continue
+        if token.startswith("$(srcdir)/"):
+            source = token[len("$(srcdir)/"):]
+        else:
+            source = token
+        # Setup.local uses both $(srcdir)/foo.c and foo.c forms.  The
+        # previous token[2:-2] slicing produced a bogus "srcdir)/..."
+        # path, so none of the statically built extension modules were
+        # registered in the inittab (notably binascii).
+        if source.startswith("Modules/"):
+            source = source[len("Modules/"):]
+        source_objects.add("Modules/" + source[:-2] + ".o")
     if source_objects & objects:
         modules.append(name)
 modules = sorted(set(modules))

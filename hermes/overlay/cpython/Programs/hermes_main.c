@@ -135,15 +135,31 @@ int hermes_runtime_main(int argc, char **argv) {
     PyConfig_InitIsolatedConfig(&config);
     config.parse_argv = 0;
 
+    /* ios_system executes commands in one long-lived application process.
+     * CPython and a-Shell's iOS integration must not be initialized and
+     * finalized once per command; doing so leaves stale thread-state and
+     * Apple log-stream state behind and crashes the next command. */
+    int python_was_initialized = Py_IsInitialized();
+    PyGILState_STATE gil_state;
+    int gil_acquired = 0;
+    if (python_was_initialized) {
+        gil_state = PyGILState_Ensure();
+        gil_acquired = 1;
+        PyConfig_Clear(&config);
+        goto python_ready;
+    }
+
     PyStatus status = PyConfig_SetBytesArgv(&config, argc, python_argv);
     if (PyStatus_Exception(status)) {
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
         Py_ExitStatusException(status);
     }
     status = PyConfig_SetString(&config, &config.program_name, L"./hermes");
     if (PyStatus_Exception(status)) {
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
         Py_ExitStatusException(status);
     }
@@ -151,6 +167,7 @@ int hermes_runtime_main(int argc, char **argv) {
     if (runtime_zip == NULL) {
         report_runtime_message("hermes: unable to decode runtime path");
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
         return 70;
     }
@@ -158,6 +175,7 @@ int hermes_runtime_main(int argc, char **argv) {
     PyMem_RawFree(runtime_zip);
     if (PyStatus_Exception(status)) {
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
         Py_ExitStatusException(status);
     }
@@ -170,21 +188,24 @@ int hermes_runtime_main(int argc, char **argv) {
                      runtime_suffixes[i]) >= (int)sizeof(path)) {
             report_runtime_message("hermes: runtime path is too long");
             PyConfig_Clear(&config);
-            free(python_argv);
+            if (gil_acquired) PyGILState_Release(gil_state);
+        free(python_argv);
             return 70;
         }
         wchar_t *wide_path = Py_DecodeLocale(path, NULL);
         if (wide_path == NULL) {
             report_runtime_message("hermes: unable to decode runtime path");
             PyConfig_Clear(&config);
-            free(python_argv);
+            if (gil_acquired) PyGILState_Release(gil_state);
+        free(python_argv);
             return 70;
         }
         status = PyWideStringList_Append(&config.module_search_paths, wide_path);
         PyMem_RawFree(wide_path);
         if (PyStatus_Exception(status)) {
             PyConfig_Clear(&config);
-            free(python_argv);
+            if (gil_acquired) PyGILState_Release(gil_state);
+        free(python_argv);
             Py_ExitStatusException(status);
         }
     }
@@ -193,14 +214,20 @@ int hermes_runtime_main(int argc, char **argv) {
     status = Py_InitializeFromConfig(&config);
     if (PyStatus_Exception(status)) {
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
-        Py_ExitStatusException(status);
+        char message[256];
+        snprintf(message, sizeof(message), "hermes: Python initialization failed: %s",
+                 status.err_msg == NULL ? "unknown error" : status.err_msg);
+        report_runtime_message(message);
+        return 70;
     }
 
+python_ready:
     wchar_t **wide_argv = PyMem_RawCalloc((size_t)argc + 1, sizeof(*wide_argv));
     if (wide_argv == NULL) {
-        Py_FinalizeEx();
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
         return 70;
     }
@@ -216,8 +243,8 @@ int hermes_runtime_main(int argc, char **argv) {
     PyObject *bootstrap = PyImport_ImportModule("sitecustomize");
     if (bootstrap == NULL) {
         int result = report_python_error("import sitecustomize");
-        Py_FinalizeEx();
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
         return result;
     }
@@ -225,8 +252,8 @@ int hermes_runtime_main(int argc, char **argv) {
 
     if (configure_python_stdio() != 0) {
         int result = report_python_error("configure Python stdio");
-        Py_FinalizeEx();
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
         return result;
     }
@@ -251,8 +278,8 @@ int hermes_runtime_main(int argc, char **argv) {
             report_python_error("run python");
         }
         flush_python_stdio();
-        Py_FinalizeEx();
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
         return result;
     }
@@ -273,14 +300,14 @@ int hermes_runtime_main(int argc, char **argv) {
         int system_exit = handle_system_exit();
         if (system_exit >= 0) {
             flush_python_stdio();
-            Py_FinalizeEx();
             PyConfig_Clear(&config);
-            free(python_argv);
+            if (gil_acquired) PyGILState_Release(gil_state);
+        free(python_argv);
             return system_exit;
         }
         int result = report_python_error(entry_module == NULL ? "import entry module" : "import entry module");
-        Py_FinalizeEx();
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
         return result;
     }
@@ -289,8 +316,8 @@ int hermes_runtime_main(int argc, char **argv) {
     if (entrypoint == NULL || !PyCallable_Check(entrypoint)) {
         Py_XDECREF(entrypoint);
         int result = report_python_error("find entrypoint main");
-        Py_FinalizeEx();
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
         return result;
     }
@@ -300,14 +327,14 @@ int hermes_runtime_main(int argc, char **argv) {
         int system_exit = handle_system_exit();
         if (system_exit >= 0) {
             flush_python_stdio();
-            Py_FinalizeEx();
             PyConfig_Clear(&config);
-            free(python_argv);
+            if (gil_acquired) PyGILState_Release(gil_state);
+        free(python_argv);
             return system_exit;
         }
         int result = report_python_error("run entrypoint main");
-        Py_FinalizeEx();
         PyConfig_Clear(&config);
+        if (gil_acquired) PyGILState_Release(gil_state);
         free(python_argv);
         return result;
     }
@@ -317,8 +344,8 @@ int hermes_runtime_main(int argc, char **argv) {
     }
     Py_DECREF(return_value);
     flush_python_stdio();
-    Py_FinalizeEx();
     PyConfig_Clear(&config);
+    if (gil_acquired) PyGILState_Release(gil_state);
     free(python_argv);
     return result;
 }
