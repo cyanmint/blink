@@ -158,6 +158,21 @@ if [ ! -f "$TARGET_STAMP" ] || [ "$(cat "$TARGET_STAMP")" != "$CPYTHON_REF" ]; t
 else
   echo "Reusing cached CPython target objects for $CPYTHON_REF"
 fi
+cat > "$TARGET_ROOT/ios_ctypes_compat.h" <<'EOF'
+#ifndef HERMES_IOS_CTYPES_COMPAT_H
+#define HERMES_IOS_CTYPES_COMPAT_H
+extern char *ios_getenv(const char *name);
+#endif
+EOF
+python3 - "$TARGET_ROOT/Modules/_ctypes/_ctypes.c" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+include = '#include "ios_ctypes_compat.h"\n'
+if include not in text:
+    path.write_text(include + text, encoding="utf-8", newline="\n")
+PY
 BUILD_TRIPLE=$(cd "$TARGET_ROOT" && ./config.guess)
 cat > "$TARGET_ROOT/ios_compat.c" <<'EOF'
 #include <stdint.h>
