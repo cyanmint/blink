@@ -61,6 +61,21 @@ int HermesLinkInputFD(void) {
   return thread_stdin == NULL ? -1 : fileno(thread_stdin);
 }
 
+static BOOL HermesLinkPrepareEmbeddedRuntime(void) {
+  NSBundle *bundle = [NSBundle mainBundle];
+  NSString *framework = [bundle.privateFrameworksPath stringByAppendingPathComponent:@"HermesRuntime.framework/HermesRuntime"];
+  NSString *runtime = [bundle pathForResource:@"hermesrt" ofType:@"zip"];
+  if (![[NSFileManager defaultManager] fileExistsAtPath:framework] || runtime.length == 0) {
+    fprintf(thread_stderr,
+            "hermes: embedded runtime is incomplete (framework=%s, hermesrt.zip=%s)\n",
+            [[NSFileManager defaultManager] fileExistsAtPath:framework] ? "ok" : "missing",
+            runtime.length ? "ok" : "missing");
+    return NO;
+  }
+  setenv("HERMES_RUNTIME_ROOT", bundle.resourcePath.UTF8String, 1);
+  return YES;
+}
+
 __attribute__((visibility("default")))
 int hermes_main(int argc, char *argv[]) {
   HermesLinkAppendLog("hermes command entered");
@@ -73,20 +88,7 @@ int hermes_main(int argc, char *argv[]) {
     return 0;
   }
 
-  NSBundle *bundle = [NSBundle mainBundle];
-  NSString *framework = [bundle.privateFrameworksPath stringByAppendingPathComponent:@"HermesRuntime.framework/HermesRuntime"];
-  NSString *runtime = [bundle pathForResource:@"hermesrt" ofType:@"zip"];
-
-  if (![[NSFileManager defaultManager] fileExistsAtPath:framework] || runtime.length == 0) {
-    fprintf(thread_stderr,
-            "hermes: embedded runtime is incomplete (framework=%s, hermesrt.zip=%s)\n",
-            [[NSFileManager defaultManager] fileExistsAtPath:framework] ? "ok" : "missing",
-            runtime.length ? "ok" : "missing");
-    return 127;
-  }
-
-  NSString *runtimeRoot = bundle.resourcePath;
-  setenv("HERMES_RUNTIME_ROOT", runtimeRoot.UTF8String, 1);
+  if (!HermesLinkPrepareEmbeddedRuntime()) return 127;
 
   // The runtime is linked into HermesRuntime.framework. Calling its exported
   // entry point keeps execution in this ios_system command thread and avoids
@@ -101,6 +103,7 @@ int hermes_main(int argc, char *argv[]) {
 
 __attribute__((visibility("default")))
 int python_main(int argc, char *argv[]) {
+  if (!HermesLinkPrepareEmbeddedRuntime()) return 127;
   setenv("HERMES_PYTHON_MODE", "1", 1);
   int result = hermes_runtime_main(argc, argv);
   unsetenv("HERMES_PYTHON_MODE");

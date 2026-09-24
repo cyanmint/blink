@@ -209,8 +209,14 @@ jobs:
           path: |
             ${{ runner.temp }}/hermes-build/native-ios
             ${{ runner.temp }}/HermesLink.xcarchive
+            ${{ runner.temp }}/HermesLink-DerivedData
             ${{ runner.temp }}/hermeslink-archive.log
-          key: ${{ runner.os }}-hermes-app-${{ github.sha }}-${{ steps.runtime_hash.outputs.sha256 }}-${{ hashFiles('Blink.xcodeproj/**', 'Blink/**', 'Settings/**', 'Sessions/**', 'Resources/**', 'Media.xcassets/**', 'Frameworks/**', '*.xcconfig', 'hermes/build/**', 'install_hermes_runtime.sh') }}
+            ~/Library/Caches/org.swift.swiftpm
+            ~/Library/org.swift.swiftpm
+            ~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex
+          key: ${{ runner.os }}-hermes-app-${{ steps.runtime_hash.outputs.sha256 }}-${{ hashFiles('Blink.xcodeproj/**', 'Blink/**', 'Settings/**', 'Sessions/**', 'Resources/**', 'Media.xcassets/**', 'Frameworks/**', '*.xcconfig', 'hermes/build/**', 'install_hermes_runtime.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-hermes-app-${{ steps.runtime_hash.outputs.sha256 }}-
 
       - name: Install runtime from release
         run: |
@@ -300,7 +306,7 @@ jobs:
           simulator_id="$(xcrun simctl list devices available | grep -m1 -Eo '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}')"
           test -n "$simulator_id"
           set -o pipefail
-          xcodebuild -project Blink.xcodeproj -scheme BlinkTests -sdk iphonesimulator -destination "id=$simulator_id" test | xcpretty
+          xcodebuild -project Blink.xcodeproj -scheme BlinkTests -sdk iphonesimulator -destination "id=$simulator_id" -derivedDataPath "$RUNNER_TEMP/HermesLink-DerivedData" test | xcpretty
 
       - name: Build unsigned device archive
         if: steps.app_build_cache.outputs.cache-hit != 'true'
@@ -311,6 +317,7 @@ jobs:
             -scheme Blink \
             -sdk iphoneos \
             -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/HermesLink-DerivedData" \
             -archivePath "$RUNNER_TEMP/HermesLink.xcarchive" \
             IPHONEOS_DEPLOYMENT_TARGET='16.1' \
             CODE_SIGN_IDENTITY='' \
