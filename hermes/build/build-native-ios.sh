@@ -141,7 +141,7 @@ if [ ! -f "$LIBFFI_INSTALL/lib/libffi.a" ] || [ ! -f "$LIBFFI_INSTALL/include/ff
       AR="$TOOLBIN/arm64-apple-ios-ar" \
       RANLIB="$TOOLBIN/arm64-apple-ios-ranlib" \
       CFLAGS="-isysroot $SDK_ROOT -miphoneos-version-min=$DEPLOYMENT_TARGET" \
-      ./configure --host=arm-apple-darwin --enable-static --disable-shared \
+      ./configure --host=aarch64-apple-darwin --enable-static --disable-shared \
         --disable-builddir --prefix="$LIBFFI_INSTALL"
     make -j"${JOBS:-16}"
     make install
