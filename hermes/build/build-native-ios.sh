@@ -213,7 +213,7 @@ from pathlib import Path
 import shlex, sys
 import re
 dryrun, output = map(Path, sys.argv[1:])
-objects = set()
+objects = set(output.read_text(encoding="utf-8").splitlines()) if output.exists() else set()
 for line in dryrun.read_text(encoding="utf-8", errors="replace").splitlines():
     if "$PYTHON_LIBRARY" not in line or " rcs " not in f" {line} ":
         continue
