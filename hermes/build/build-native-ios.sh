@@ -206,7 +206,7 @@ clang --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT" \
   PATH="$TOOLBIN:/usr/bin:/bin" CC=arm64-apple-ios-clang AR=arm64-apple-ios-ar RANLIB=arm64-apple-ios-ranlib \
     CPPFLAGS="-DOPENSSL_THREADS -I$OPENSSL_INSTALL/include -I$LIBFFI_INSTALL/include -I$ROOT/../Blink" \
     LDFLAGS="-L$OPENSSL_INSTALL/lib -L$LIBFFI_INSTALL/lib -F$IOS_SYSTEM_FRAMEWORK_DIR -framework ios_system" \
-    LIBS="$TARGET_ROOT/ios_compat.o -lssl -lcrypto -Wl,-force_load,$LIBFFI_INSTALL/lib/libffi.a -F$IOS_SYSTEM_FRAMEWORK_DIR -framework ios_system" \
+    LIBS="$TARGET_ROOT/ios_compat.o -lssl -lcrypto -lffi -F$IOS_SYSTEM_FRAMEWORK_DIR -framework ios_system" \
     py_cv_module__lzma=n/a py_cv_module__bz2=n/a py_cv_module__dbm=n/a \
     py_cv_module__gdbm=n/a py_cv_module_readline=n/a py_cv_module__curses=n/a \
     py_cv_module__curses_panel=n/a py_cv_module__blake2=n/a \
@@ -216,6 +216,7 @@ clang --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT" \
     --build="$BUILD_TRIPLE" --with-build-python="$HOST_PYTHON" \
     --without-ensurepip --disable-test-modules --disable-ipv6 --with-lto=no \
     --enable-framework)
+sed -i.bak "s#-lffi#-Wl,-force_load,$LIBFFI_INSTALL/lib/libffi.a#g" "$TARGET_ROOT/Makefile"
 python3 - "$TARGET_ROOT/Makefile" <<'PY'
 from pathlib import Path
 path = Path(__import__("sys").argv[1])
