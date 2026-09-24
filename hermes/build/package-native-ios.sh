@@ -12,10 +12,13 @@ PYTHON_LIBRARY="libpython${PYTHON_VERSION}.a"
 HOST_PYTHON=${HOST_PYTHON:-$(dirname "$TARGET_ROOT")/host-python/bin/python${PYTHON_VERSION}}
 ARCHIVE="$BUILD_ROOT/hermesrt.zip"
 OPENSSL_INSTALL=${OPENSSL_INSTALL:-$BUILD_ROOT/openssl-install}
+IOS_SYSTEM_FRAMEWORK=${IOS_SYSTEM_FRAMEWORK:-$ROOT/../xcfs/.build/artifacts/xcfs/ios_system/ios_system.xcframework/ios-arm64/ios_system.framework}
+IOS_SYSTEM_FRAMEWORK_DIR=$(dirname "$IOS_SYSTEM_FRAMEWORK")
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
 [ -f "$TARGET_ROOT/$PYTHON_LIBRARY" ] || { echo "missing target $PYTHON_LIBRARY" >&2; exit 2; }
+[ -f "$IOS_SYSTEM_FRAMEWORK/ios_system" ] || { echo "missing a-Shell ios_system framework: $IOS_SYSTEM_FRAMEWORK" >&2; exit 2; }
 [ -d "$TARGET_ROOT/Lib/encodings" ] || { echo "missing CPython standard library" >&2; exit 2; }
 HERMES_SOURCE=${HERMES_SOURCE:-$ROOT/build/external/hermes-agent}
 WEBUI_SOURCE=${WEBUI_SOURCE:-$ROOT/build/external/hermes-webui}
@@ -101,6 +104,7 @@ CC=${CC:-arm64-apple-ios-clang}
 "$CC" -mios-version-min="${IPHONEOS_DEPLOYMENT_TARGET:-13.0}" \
 -Wl,-headerpad_max_install_names -Wl,-x -Wl,-no_function_starts -Wl,-no_data_in_code_info -Wl,-all_load "$TARGET_ROOT/$PYTHON_LIBRARY" -Wl,-force_load,"$TARGET_ROOT/Modules/_hacl/libHacl_Hash_SHA2.a" -Wl,-force_load,"$TARGET_ROOT/Modules/expat/libexpat.a" "$BUILD_ROOT/hermes_main.o" \
   -Wl,-rpath,@loader_path -framework CoreFoundation -ldl -lpthread -lm -lz -lsqlite3 \
+  -F"$IOS_SYSTEM_FRAMEWORK_DIR" -framework ios_system \
   -L"$OPENSSL_INSTALL/lib" -lssl -lcrypto "$TARGET_ROOT/ios_compat.o" \
   -dynamiclib -install_name "@rpath/HermesRuntime.framework/HermesRuntime" \
   -Wl,-exported_symbol,_hermes_runtime_main \

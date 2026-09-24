@@ -31,6 +31,9 @@ OPENSSL_ROOT=${OPENSSL_ROOT:-$BUILD_ROOT/openssl}
 OPENSSL_INSTALL=${OPENSSL_INSTALL:-$BUILD_ROOT/openssl-install}
 TARGET_ROOT=${TARGET_ROOT:-$BUILD_ROOT/target}
 TOOLBIN=$BUILD_ROOT/bin
+IOS_SYSTEM_FRAMEWORK=${IOS_SYSTEM_FRAMEWORK:-$ROOT/../xcfs/.build/artifacts/xcfs/ios_system/ios_system.xcframework/ios-arm64/ios_system.framework}
+IOS_SYSTEM_FRAMEWORK_DIR=$(dirname "$IOS_SYSTEM_FRAMEWORK")
+export IOS_SYSTEM_FRAMEWORK
 
 mkdir -p "$BUILD_ROOT" "$TOOLBIN"
 
@@ -42,6 +45,11 @@ if [ "$HOST_OS" != Darwin ] && [ ! -d "$SDK_ROOT" ]; then
   fi
 fi
 [ -d "$SDK_ROOT/usr/include" ] || { echo "missing iOS SDK: $SDK_ROOT" >&2; exit 3; }
+[ -f "$IOS_SYSTEM_FRAMEWORK/ios_system" ] || {
+  echo "missing a-Shell ios_system framework: $IOS_SYSTEM_FRAMEWORK" >&2
+  echo "Run get_frameworks.sh first or set IOS_SYSTEM_FRAMEWORK" >&2
+  exit 3
+}
 
 if [ ! -d "$CPYTHON_ROOT/.git" ]; then
   bash "$ROOT/build/fetch-ashell.sh" "$ASHELL_ROOT"
@@ -129,73 +137,27 @@ else
 fi
 BUILD_TRIPLE=$(cd "$TARGET_ROOT" && ./config.guess)
 cat > "$TARGET_ROOT/ios_compat.c" <<'EOF'
-#include <errno.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
-#define HERMES_WEAK __attribute__((weak))
-
-int __isPlatformVersionAtLeast(uint32_t platform, uint32_t major, uint32_t minor, uint32_t subminor) {
+/* CPython's iOS headers import the complete ios_system ABI from the host
+ * application.  Do not provide local stream/process fallbacks here: doing so
+ * hides a missing a-Shell dependency and can bind CPython to NULL TLS streams.
+ * This SDK compatibility symbol is unrelated to ios_system and is retained
+ * only for SDKs which do not export it. */
+__attribute__((weak))
+int __isPlatformVersionAtLeast(uint32_t platform, uint32_t major,
+                               uint32_t minor, uint32_t subminor) {
     (void)platform; (void)major; (void)minor; (void)subminor;
     return 1;
 }
-
-// Weak fallbacks let the standalone runtime framework link. The host app's
-// Blink/a-Shell implementations override these symbols when present.
-__thread FILE *thread_stdin HERMES_WEAK = NULL;
-__thread FILE *thread_stdout HERMES_WEAK = NULL;
-__thread FILE *thread_stderr HERMES_WEAK = NULL;
-static void hermes_init_streams(void) {
-    if (!thread_stdin) thread_stdin = stdin;
-    if (!thread_stdout) thread_stdout = stdout;
-    if (!thread_stderr) thread_stderr = stderr;
-}
-char **environmentVariables(pid_t pid) HERMES_WEAK;
-char **environmentVariables(pid_t pid) { (void)pid; extern char **environ; return environ; }
-pid_t ios_currentPid(void) HERMES_WEAK;
-pid_t ios_currentPid(void) { return getpid(); }
-pid_t ios_fork(void) HERMES_WEAK;
-pid_t ios_fork(void) { errno = ENOSYS; return (pid_t)-1; }
-int ios_waitpid(pid_t pid) HERMES_WEAK;
-int ios_waitpid(pid_t pid) { (void)pid; errno = ENOSYS; return -1; }
-pid_t ios_full_waitpid(pid_t pid, int *status, int options) HERMES_WEAK;
-pid_t ios_full_waitpid(pid_t pid, int *status, int options) { (void)pid; (void)status; (void)options; errno = ENOSYS; return (pid_t)-1; }
-int ios_system(const char *command) HERMES_WEAK;
-int ios_system(const char *command) { (void)command; errno = ENOSYS; return -1; }
-void ios_exit(int code) HERMES_WEAK;
-void ios_exit(int code) { _Exit(code); }
-int ios_execv(const char *path, char *const argv[]) HERMES_WEAK;
-int ios_execv(const char *path, char *const argv[]) { (void)path; (void)argv; errno = ENOSYS; return -1; }
-int ios_execve(const char *path, char *const argv[], char *const envp[]) HERMES_WEAK;
-int ios_execve(const char *path, char *const argv[], char *const envp[]) { (void)path; (void)argv; (void)envp; errno = ENOSYS; return -1; }
-int ios_dup2(int oldfd, int newfd) HERMES_WEAK;
-int ios_dup2(int oldfd, int newfd) { return dup2(oldfd, newfd); }
-int ios_isatty(int fd) HERMES_WEAK;
-int ios_isatty(int fd) { return isatty(fd); }
-ssize_t ios_write(int fd, const void *buf, size_t len) HERMES_WEAK;
-ssize_t ios_write(int fd, const void *buf, size_t len) { return write(fd, buf, len); }
-size_t ios_fwrite(const void *p, size_t s, size_t n, FILE *f) HERMES_WEAK;
-size_t ios_fwrite(const void *p, size_t s, size_t n, FILE *f) { hermes_init_streams(); return fwrite(p, s, n, f); }
-int ios_fputs(const char *s, FILE *f) HERMES_WEAK;
-int ios_fputs(const char *s, FILE *f) { hermes_init_streams(); return fputs(s, f); }
-int ios_fputc(int c, FILE *f) HERMES_WEAK;
-int ios_fputc(int c, FILE *f) { hermes_init_streams(); return fputc(c, f); }
-int ios_puts(const char *s) HERMES_WEAK;
-int ios_puts(const char *s) { hermes_init_streams(); return puts(s); }
-int ios_fflush(FILE *f) HERMES_WEAK;
-int ios_fflush(FILE *f) { hermes_init_streams(); return fflush(f); }
 EOF
 clang --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT" \
   -c "$TARGET_ROOT/ios_compat.c" -o "$TARGET_ROOT/ios_compat.o"
 (cd "$TARGET_ROOT" && \
   PATH="$TOOLBIN:/usr/bin:/bin" CC=arm64-apple-ios-clang AR=arm64-apple-ios-ar RANLIB=arm64-apple-ios-ranlib \
     CPPFLAGS="-DOPENSSL_THREADS -I$OPENSSL_INSTALL/include -I$ROOT/../Blink" \
-    LDFLAGS="-L$OPENSSL_INSTALL/lib" \
-    LIBS="$TARGET_ROOT/ios_compat.o -lssl -lcrypto" \
+    LDFLAGS="-L$OPENSSL_INSTALL/lib -F$IOS_SYSTEM_FRAMEWORK_DIR -framework ios_system" \
+    LIBS="$TARGET_ROOT/ios_compat.o -lssl -lcrypto -F$IOS_SYSTEM_FRAMEWORK_DIR -framework ios_system" \
     py_cv_module__lzma=n/a py_cv_module__bz2=n/a py_cv_module__dbm=n/a \
     py_cv_module__gdbm=n/a py_cv_module_readline=n/a py_cv_module__curses=n/a \
     py_cv_module__curses_panel=n/a py_cv_module__blake2=n/a py_cv_module__ctypes=n/a \

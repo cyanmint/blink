@@ -74,30 +74,6 @@ static void flush_python_stdio(void) {
     fflush(stderr);
 }
 
-static int configure_python_stdio(void) {
-    typedef int (*output_fd_fn)(int);
-    typedef int (*input_fd_fn)(void);
-    output_fd_fn output_fd = (output_fd_fn)dlsym(RTLD_DEFAULT, "HermesLinkOutputFD");
-    input_fd_fn input_fd = (input_fd_fn)dlsym(RTLD_DEFAULT, "HermesLinkInputFD");
-    int stdin_fd = input_fd == NULL ? STDIN_FILENO : input_fd();
-    if (stdin_fd < 0) stdin_fd = STDIN_FILENO;
-    int stdout_fd = output_fd == NULL ? STDOUT_FILENO : output_fd(0);
-    int stderr_fd = output_fd == NULL ? STDERR_FILENO : output_fd(1);
-    char script[768];
-    snprintf(script, sizeof(script),
-        "import io, os, sys\n"
-        "sys.stdin = io.TextIOWrapper(os.fdopen(os.dup(%d), 'rb'), encoding='utf-8', errors='replace', line_buffering=True)\n"
-        "sys.stdout = io.TextIOWrapper(os.fdopen(os.dup(%d), 'wb'), encoding='utf-8', errors='backslashreplace', line_buffering=True)\n"
-        "sys.stderr = io.TextIOWrapper(os.fdopen(os.dup(%d), 'wb'), encoding='utf-8', errors='backslashreplace', line_buffering=True)\n",
-        stdin_fd, stdout_fd, stderr_fd);
-    int result = PyRun_SimpleString(script);
-    if (result != 0) {
-        PyErr_Clear();
-        return -1;
-    }
-    return 0;
-}
-
 int hermes_register_native_modules(void);
 
 __attribute__((visibility("default")))
@@ -134,6 +110,8 @@ int hermes_runtime_main(int argc, char **argv) {
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
     config.parse_argv = 0;
+    config.use_system_logger = 0;
+    config.buffered_stdio = 0;
 
     PyStatus status = PyConfig_SetBytesArgv(&config, argc, python_argv);
     if (PyStatus_Exception(status)) {
@@ -223,13 +201,6 @@ int hermes_runtime_main(int argc, char **argv) {
     }
     Py_DECREF(bootstrap);
 
-    if (configure_python_stdio() != 0) {
-        int result = report_python_error("configure Python stdio");
-        Py_FinalizeEx();
-        PyConfig_Clear(&config);
-        free(python_argv);
-        return result;
-    }
 
     if (getenv("HERMES_PYTHON_MODE") != NULL) {
         int result = 0;

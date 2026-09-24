@@ -222,16 +222,31 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Cache framework builds
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            xcfs/.build
+            Frameworks/ios_system/xcfs/.build
+          key: ${{ runner.os }}-${{ hashFiles('get_frameworks.sh', 'xcfs/Package.swift') }}
+
+      - name: Get frameworks for native runtime
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash get_frameworks.sh
+
       - name: Build native Hermes framework for the app
         env:
           BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
           IPHONEOS_DEPLOYMENT_TARGET: '16.1'
           JOBS: 4
+          IOS_SYSTEM_FRAMEWORK: ${{ github.workspace }}/xcfs/.build/artifacts/xcfs/ios_system/ios_system.xcframework/ios-arm64/ios_system.framework
         run: |
           set -euo pipefail
           chmod +x hermes/build/*.sh
           bash hermes/build/build-native-ios.sh
           test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
+          otool -L hermes/Frameworks/HermesRuntime.framework/HermesRuntime | grep -F '/ios_system.framework/ios_system'
           bash install_hermes_runtime.sh hermes
 
       - name: Run Hermes tests and hermes doctor
@@ -269,19 +284,6 @@ jobs:
             'import hermes_cli.main, hermes_cli.doctor, sitecustomize'
           run_hermes_test python3 -m hermes_cli.main --help
           run_hermes_test python3 -m hermes_cli.main doctor
-
-      - name: Cache framework builds
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            xcfs/.build
-            Frameworks/ios_system/xcfs/.build
-          key: ${{ runner.os }}-${{ hashFiles('get_frameworks.sh', 'xcfs/Package.swift') }}
-
-      - name: Get frameworks
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: bash get_frameworks.sh
 
       - name: Get resources
         if: steps.cache.outputs.cache-hit != 'true'
