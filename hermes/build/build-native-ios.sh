@@ -140,7 +140,7 @@ if [ ! -f "$LIBFFI_INSTALL/lib/libffi.a" ] || [ ! -f "$LIBFFI_INSTALL/include/ff
     CC="$TOOLBIN/arm64-apple-ios-clang" \
       AR="$TOOLBIN/arm64-apple-ios-ar" \
       RANLIB="$TOOLBIN/arm64-apple-ios-ranlib" \
-      CFLAGS="-isysroot $SDK_ROOT -miphoneos-version-min=$DEPLOYMENT_TARGET" \
+      CFLAGS="-isysroot $SDK_ROOT -miphoneos-version-min=$DEPLOYMENT_TARGET -fno-integrated-as" \
       ./configure --host=aarch64-apple-darwin --enable-static --disable-shared \
         --disable-builddir --prefix="$LIBFFI_INSTALL"
     make -j"${JOBS:-16}"
