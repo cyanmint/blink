@@ -81,11 +81,35 @@ static int handle_system_exit(void) {
     return result;
 }
 
+static int set_command_global(PyObject *globals, const char *name, PyObject *value) {
+    if (value == NULL) return -1;
+    int result = PyDict_SetItemString(globals, name, value);
+    Py_DECREF(value);
+    return result;
+}
+
+static PyObject *new_python_globals(const char *filename) {
+    PyObject *globals = PyDict_New();
+    if (globals == NULL) return NULL;
+    int failed = PyDict_SetItemString(globals, "__builtins__", PyEval_GetBuiltins()) < 0 ||
+        set_command_global(globals, "__name__", PyUnicode_FromString("__main__")) < 0;
+    if (!failed && filename != NULL) {
+        failed = set_command_global(globals, "__file__",
+                                   PyUnicode_DecodeFSDefault(filename)) < 0;
+    }
+    if (failed) {
+        Py_DECREF(globals);
+        return NULL;
+    }
+    return globals;
+}
+
 static PyObject *run_python_string(const char *source) {
-    PyObject *main_module = PyImport_AddModule("__main__");
-    if (main_module == NULL) return NULL;
-    PyObject *globals = PyModule_GetDict(main_module);
-    return PyRun_StringFlags(source, Py_file_input, globals, globals, NULL);
+    PyObject *globals = new_python_globals(NULL);
+    if (globals == NULL) return NULL;
+    PyObject *result = PyRun_StringFlags(source, Py_file_input, globals, globals, NULL);
+    Py_DECREF(globals);
+    return result;
 }
 
 static int set_webui_argv(int argc, char **argv) {
@@ -139,11 +163,10 @@ static void flush_python_stdio(void) {
 
 int hermes_register_native_modules(void);
 
-/* Keep CPython initialized for the app lifetime.  Each command gets a
- * sub-interpreter: it has its own sys.modules, sys.argv, and __main__, while
- * the shared GIL keeps the legacy statically-linked iOS extensions safe. */
+/* Keep CPython initialized for the app lifetime and run every command in the
+ * main interpreter.  The iOS build contains legacy static extensions, and
+ * CPython's PyGILState API is only supported with the main interpreter. */
 static pthread_once_t runtime_init_once = PTHREAD_ONCE_INIT;
-static PyInterpreterState *runtime_main_interpreter;
 static int runtime_init_result = 70;
 
 static void initialize_runtime_once(void) {
@@ -207,67 +230,9 @@ static void initialize_runtime_once(void) {
         return;
     }
 
-    runtime_main_interpreter = PyThreadState_GetInterpreter(PyThreadState_Get());
     PyConfig_Clear(&config);
     PyEval_SaveThread();
     runtime_init_result = 0;
-}
-
-static PyThreadState *begin_command_interpreter(PyThreadState **parent_state_out,
-                                                int *owns_parent_state_out) {
-    /* ios_system can re-enter on a thread that already owns a Python state.
-     * Reuse that attached parent; when called with no attached state (for
-     * example, from os.system while CPython released the GIL), attach a
-     * temporary main-interpreter state for this command to restore later. */
-    PyThreadState *parent_state = PyThreadState_GetUnchecked();
-    int owns_parent_state = 0;
-    if (parent_state == NULL) {
-        parent_state = PyThreadState_New(runtime_main_interpreter);
-        if (parent_state == NULL) {
-            return NULL;
-        }
-        PyEval_AcquireThread(parent_state);
-        owns_parent_state = 1;
-    }
-
-    const PyInterpreterConfig command_config = {
-        .use_main_obmalloc = 1,
-        .allow_fork = 1,
-        .allow_exec = 1,
-        .allow_threads = 1,
-        .allow_daemon_threads = 0,
-        .check_multi_interp_extensions = 0,
-        .gil = PyInterpreterConfig_SHARED_GIL,
-    };
-    PyThreadState *command_state = NULL;
-    PyStatus status = Py_NewInterpreterFromConfig(&command_state, &command_config);
-    if (PyStatus_Exception(status) || command_state == NULL) {
-        report_runtime_message(status.err_msg == NULL
-            ? "hermes: unable to create command interpreter" : status.err_msg);
-        if (owns_parent_state) {
-            PyThreadState_Clear(parent_state);
-            PyThreadState_DeleteCurrent();
-        }
-        return NULL;
-    }
-    *parent_state_out = parent_state;
-    *owns_parent_state_out = owns_parent_state;
-    return command_state;
-}
-
-static void end_command_interpreter(PyThreadState *command_state,
-                                    PyThreadState *parent_state,
-                                    int owns_parent_state) {
-    /* CPython's interpreter teardown runs threading shutdown hooks (including
-     * ThreadPoolExecutor's worker shutdown) before it checks remaining states.
-     * Do not pre-wait here: that would deadlock workers whose exit sentinels
-     * are only queued by those hooks. */
-    Py_EndInterpreter(command_state);
-    PyThreadState_Swap(parent_state);
-    if (owns_parent_state) {
-        PyThreadState_Clear(parent_state);
-        PyThreadState_DeleteCurrent();
-    }
 }
 
 static int set_command_argv(int argc, char **argv) {
@@ -301,12 +266,12 @@ static int run_python_command(int argc, char **argv) {
             report_runtime_message("python: unable to open script");
             return 2;
         }
-        PyObject *main_module = PyImport_AddModule("__main__");
-        PyObject *globals = main_module == NULL ? NULL : PyModule_GetDict(main_module);
+        PyObject *globals = new_python_globals(argv[1]);
         result = globals == NULL ? NULL
             : PyRun_FileExFlags(script, argv[1], Py_file_input,
                                 globals, globals, 1, NULL);
         if (globals == NULL) fclose(script);
+        Py_XDECREF(globals);
     } else {
         result = run_python_string(
             "import code; code.interact(local=dict(globals(), **locals()))");
@@ -357,12 +322,15 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
     pthread_once(&runtime_init_once, initialize_runtime_once);
     if (runtime_init_result != 0) return runtime_init_result;
 
-    PyThreadState *parent_state = NULL;
-    int owns_parent_state = 0;
-    PyThreadState *command_state = begin_command_interpreter(
-        &parent_state, &owns_parent_state);
-    if (command_state == NULL) {
-        report_runtime_message("hermes: unable to create command interpreter");
+    /* All commands use the main interpreter: it is the only configuration
+     * supported by PyGILState_Ensure and by the linked legacy extensions. */
+    PyGILState_STATE gil_state = PyGILState_Ensure();
+    PyObject *old_argv = PySys_GetObject("argv");
+    PyObject *saved_argv = old_argv == NULL ? NULL : PySequence_List(old_argv);
+    if (saved_argv == NULL) {
+        PyErr_Clear();
+        PyGILState_Release(gil_state);
+        report_runtime_message("hermes: unable to preserve command arguments");
         return 70;
     }
     int result = set_command_argv(argc, argv);
@@ -377,7 +345,9 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
         }
     }
     flush_python_stdio();
-    end_command_interpreter(command_state, parent_state, owns_parent_state);
+    if (PySys_SetObject("argv", saved_argv) != 0) PyErr_Clear();
+    Py_DECREF(saved_argv);
+    PyGILState_Release(gil_state);
     return result;
 }
 

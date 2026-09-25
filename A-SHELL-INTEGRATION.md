@@ -46,16 +46,23 @@ track those HermesLink-created background jobs; `fg` waits for completion and
 `bg` selects an already-running job. True stop-and-resume job control still
 requires thread-level suspend/resume support in `ios_system`.
 
-The embedded Python runtime is initialized once per app process. Each `python`
-or `python3` command runs in a fresh CPython sub-interpreter, so nested calls
-through `os.system()` and commands in separate Blink sessions do not try to
-initialize or finalize the process-global interpreter concurrently. The
-sub-interpreters share CPython's GIL to remain compatible with a-Shell's
-statically linked legacy extensions: independent commands can overlap while
-waiting on I/O, but CPU-bound Python bytecode does not run on multiple cores.
-Command teardown uses CPython's thread-shutdown hooks, which also stop
-`ThreadPoolExecutor` workers before the interpreter is destroyed. Daemon
-threads are disabled because they can outlive the command interpreter.
+The embedded Python runtime is initialized once per app process. Every `python`
+or `python3` call enters CPython's main interpreter through `PyGILState_Ensure`;
+it does not create or destroy sub-interpreters. This keeps nested `os.system()`
+calls and separate Blink sessions on the supported main-interpreter path for
+CPython's GIL-state API and the a-Shell statically linked extensions. CPython's
+GIL serializes Python bytecode, but commands can overlap while Python releases
+the GIL for I/O. This does not provide CPU-bound Python parallelism or isolated
+`sys.modules` state between commands. `-c` and script code receive fresh global
+dictionaries, but `sys.argv`, imported modules, and extension-module globals are
+process-wide; a command that yields while running may observe another command's
+temporary `sys.argv`.
+
+Python `threading` and `ThreadPoolExecutor` workers use the process-lifetime
+interpreter rather than being torn down at the end of each terminal command.
+Low-level `_thread` startup is wrapped as managed non-daemon threads by
+`sitecustomize.py`; long-lived workers can therefore continue after the
+command that started them returns.
 The app command dictionary binds both `sh` and the `dash` name selected by
 `ios_system` for non-`-c` invocations to HermesLink's `sh_main`. `sh -c`
 splits unquoted `&&`/`||` chains and dispatches each selected command through

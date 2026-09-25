@@ -18,22 +18,31 @@ PYTHON_OVERLAY = ROOT / "hermes" / "overlay" / "python"
 
 
 class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
-    def test_python_commands_use_independent_subinterpreters(self) -> None:
+    def test_python_commands_use_the_shared_main_interpreter(self) -> None:
         source = RUNTIME_SOURCE.read_text(encoding="utf-8")
 
         self.assertIn("pthread_once(&runtime_init_once, initialize_runtime_once)", source)
-        self.assertIn("PyThreadState_GetUnchecked()", source)
-        self.assertIn("PyThreadState_New(runtime_main_interpreter)", source)
-        self.assertIn("PyEval_AcquireThread(parent_state)", source)
-        self.assertIn("PyThreadState_Swap(parent_state)", source)
-        self.assertIn("Py_NewInterpreterFromConfig(&command_state, &command_config)", source)
-        self.assertIn(".allow_daemon_threads = 0", source)
-        self.assertNotIn("wait_for_command_threads", source)
-        self.assertNotIn('setenv("HERMES_WEBUI_HOST"', source)
-        self.assertNotIn('setenv("HERMES_WEBUI_PORT"', source)
-        self.assertIn("Py_EndInterpreter(command_state)", source)
+        self.assertIn("PyGILState_Ensure()", source)
+        self.assertIn("PyGILState_Release(gil_state)", source)
+        self.assertNotIn("PyThreadState_New(", source)
+        self.assertNotIn("Py_NewInterpreterFromConfig(", source)
+        self.assertNotIn("Py_EndInterpreter(", source)
         self.assertNotIn("Py_FinalizeEx", source)
         self.assertNotIn("HERMES_PYTHON_MODE", source)
+        self.assertIn("new_python_globals", source)
+        self.assertIn("PySequence_List(old_argv)", source)
+        self.assertIn('PySys_SetObject("argv", saved_argv)', source)
+        self.assertNotIn('setenv("HERMES_WEBUI_HOST"', source)
+        self.assertNotIn('setenv("HERMES_WEBUI_PORT"', source)
+        self.assertNotIn("wait_for_command_threads", source)
+
+        app_delegate = APP_DELEGATE_SOURCE.read_text(encoding="utf-8")
+        self.assertIn("numPythonInterpreters = 1;", app_delegate)
+
+        ios_system_source = (ROOT / "Frameworks" / "ios_system" / "ios_system.m").read_text(encoding="utf-8")
+        self.assertIn('functionName isEqualToString: @"python_main"', ios_system_source)
+        self.assertIn("params->numInterpreter = -1;", ios_system_source)
+        self.assertIn("p->numInterpreter >= 0 && p->numInterpreter < MaxPythonInterpreters", ios_system_source)
 
         package_script = PACKAGE_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("-Wl,-exported_symbol,_hermes_python_main", package_script)
@@ -54,7 +63,7 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
         self.assertNotIn("PyRun_SimpleString(", source)
         self.assertNotIn("PyRun_SimpleFileExFlags(", source)
 
-    def test_low_level_threads_are_joined_during_interpreter_shutdown(self) -> None:
+    def test_managed_low_level_threads_and_executor_run_under_overlay(self) -> None:
         program = """\
 import _thread
 import concurrent.futures

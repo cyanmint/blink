@@ -107,6 +107,9 @@ void __setupProcessEnv(void) {
   // Reassert the embedded entrypoints after ios_system's command list is built.
   // The stock a-Shell dictionary contains stale Python framework aliases; those
   // must never win over the symbols linked into HermesRuntime.framework.
+  // HermesRuntime now supports concurrent calls in one process-wide CPython
+  // interpreter, so disable ios_system's pythonA/pythonB library allocator.
+  numPythonInterpreters = 1;
   replaceCommand(@"python", @"python_main", false);
   replaceCommand(@"python3", @"python_main", false);
   replaceCommand(@"sh", @"sh_main", false);
