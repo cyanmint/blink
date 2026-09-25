@@ -33,6 +33,7 @@ cp -a "$WEBUI_ROOT/static" "$STAGE/hermes-webui/" 2>/dev/null || true
 for module in bootstrap.py server.py mcp_server.py; do
   [ -f "$WEBUI_ROOT/$module" ] && cp "$WEBUI_ROOT/$module" "$STAGE/hermes-webui/"
 done
+"$HOST_PYTHON" "$ROOT/overlay/patches/patch-webui-zip.py" "$STAGE/hermes-webui/api/config.py"
 cp "$ROOT/overlay/python/sitecustomize.py" "$STAGE/python/sitecustomize.py"
 
 uv pip install --target "$VENDOR_ROOT" --python "$HOST_PYTHON" \
@@ -47,6 +48,7 @@ uv pip install --target "$VENDOR_ROOT" --python "$HOST_PYTHON" --no-deps \
 find "$VENDOR_ROOT" -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.pyd' \) -delete
 cp -a "$VENDOR_ROOT/." "$STAGE/python/site-packages/"
 cp -a "$ROOT/overlay" "$STAGE/overlay"
+"$HOST_PYTHON" "$ROOT/overlay/patches/ensure-zip-import-packages.py" "$STAGE/hermes"
 
 python3 - "$STAGE" "$OUTPUT" <<'PY'
 import os, sys, zipfile
@@ -64,6 +66,13 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     names = set(archive.namelist())
     assert 'python/encodings/__init__.py' in names
     assert 'hermes/hermes_cli/main.py' in names
+    assert 'hermes/run_agent.py' in names
+    assert 'hermes/plugins/browser/__init__.py' in names
+    assert 'hermes-webui/api/config.py' in names
+    assert 'hermes-webui/static/index.html' in names
+    config = archive.read('hermes-webui/api/config.py').decode('utf-8')
+    assert '# HERMES_ZIP_STATIC_ROOT_V2' in config
+    assert config.index('def _runtime_zip_archives():') < config.index('def _discover_agent_dir() -> Path:')
     assert not any(n.endswith(('.so', '.dylib', '.pyd', '.wasm')) for n in names)
 PY
 printf 'created %s\n' "$OUTPUT"

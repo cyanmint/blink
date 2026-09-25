@@ -18,7 +18,7 @@ class WebUIZipRuntimeTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
         self.root = Path(self.temp_dir.name)
-        self.archive = self.root / "hermes.zip"
+        self.archive = self.root / "hermesrt.zip"
         stage = self.root / "stage" / "hermes-webui" / "api"
         stage.mkdir(parents=True)
         self.config_path = stage / "config.py"
@@ -217,6 +217,177 @@ def _discover_agent_dir() -> Path:
         self.assertIn("for _archive in _runtime_zip_archives():", patched)
         self.assertNotIn("    _origins = []", patched)
         compile(patched, str(legacy_config), "exec")
+
+    def test_archive_helper_precedes_import_time_agent_discovery(self) -> None:
+        ordered_config = self.root / "ordered-config.py"
+        ordered_config.write_text(
+            '''import os
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).parent.parent.resolve()
+_DEFAULT_HERMES_HOME = Path.home() / ".hermes"
+
+def _discover_agent_dir() -> Path:
+    """Original discovery function called during config import."""
+    return None
+
+def _looks_like_agent_source_root(path: Path) -> bool:
+    return (path / "run_agent.py").is_file()
+
+_AGENT_DIR = _discover_agent_dir()
+
+def get_static_root() -> Path:
+    return REPO_ROOT / "static"
+''',
+            encoding="utf-8",
+            newline="\n",
+        )
+        subprocess.run(
+            [sys.executable, str(PATCHER), str(ordered_config)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        original_sys_path = list(sys.path)
+        try:
+            sys.path[:] = [entry for entry in sys.path if entry != self.import_path]
+            spec = importlib.util.spec_from_file_location("ordered_config", ordered_config)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            sys.path[:] = original_sys_path
+
+        self.assertIsNone(module._AGENT_DIR)
+
+    def test_upgrades_previous_zip_static_patch_without_breaking_config_import(self) -> None:
+        previous_config = self.root / "previously-patched-config.py"
+        previous_config.write_text(
+            '''import os
+import sys
+import zipfile
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).parent.parent.resolve()
+_DEFAULT_HERMES_HOME = Path.home() / ".hermes"
+
+def _discover_agent_dir() -> Path:
+    _explicit = os.getenv("HERMES_WEBUI_AGENT_DIR")
+    _target = Path(os.getenv("HERMES_HOME", str(_DEFAULT_HERMES_HOME))) / "hermes-agent"
+    _origins = []
+    for _archive in _runtime_zip_archives():
+        pass
+    return None
+
+def _looks_like_agent_source_root(path: Path) -> bool:
+    return (path / "run_agent.py").is_file()
+
+_AGENT_DIR = _discover_agent_dir()
+
+_BUNDLED_STATIC_ROOT: Path | None = None
+
+def _runtime_zip_archives():
+    """Previous patch placed this below import-time agent discovery."""
+    return []
+
+def get_static_root() -> Path:
+    global _BUNDLED_STATIC_ROOT
+    return REPO_ROOT / "static"
+
+def get_static_root() -> Path:
+    return REPO_ROOT / "stale-static"
+''',
+            encoding="utf-8",
+            newline="\n",
+        )
+        subprocess.run(
+            [sys.executable, str(PATCHER), str(previous_config)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        patched = previous_config.read_text(encoding="utf-8")
+        self.assertEqual(patched.count("def _runtime_zip_archives():"), 1)
+        self.assertLess(
+            patched.index("def _runtime_zip_archives():"),
+            patched.index("def _discover_agent_dir() -> Path:"),
+        )
+        self.assertIn("# HERMES_ZIP_STATIC_ROOT_V2", patched)
+        subprocess.run(
+            [sys.executable, str(PATCHER), str(previous_config)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(previous_config.read_text(encoding="utf-8"), patched)
+
+        original_sys_path = list(sys.path)
+        try:
+            sys.path[:] = [entry for entry in sys.path if entry != self.import_path]
+            sys.path.insert(0, str(self.archive))
+            spec = importlib.util.spec_from_file_location("previously_patched_config", previous_config)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            sys.path[:] = original_sys_path
+        self.assertIsNone(module._AGENT_DIR)
+        static_root = module.get_static_root()
+        self.assertTrue(static_root.samefile(self.root / "home" / "webui"))
+        self.assertEqual(
+            (static_root / "index.html").read_text(encoding="utf-8"),
+            "<main>bundled UI</main>",
+        )
+
+    def test_linux_package_patches_webui_config_before_archiving(self) -> None:
+        package_script = Path(__file__).parents[1] / "build" / "package-hermesrt-linux.sh"
+        source = package_script.read_text(encoding="utf-8")
+        patch_command = (
+            '"$HOST_PYTHON" "$ROOT/overlay/patches/patch-webui-zip.py" '
+            '"$STAGE/hermes-webui/api/config.py"'
+        )
+
+        self.assertIn(patch_command, source)
+        self.assertLess(source.index(patch_command), source.index("python3 - \"$STAGE\" \"$OUTPUT\""))
+
+    def test_zip_package_explicitly_marks_browser_namespace_for_zipimport(self) -> None:
+        root = self.root / "package-stage" / "hermes"
+        plugins = root / "plugins"
+        browser = plugins / "browser"
+        browser.mkdir(parents=True)
+        (plugins / "__init__.py").write_text("", encoding="utf-8", newline="\n")
+        (browser / "_common.py").write_text("AVAILABLE = True\n", encoding="utf-8", newline="\n")
+        helper = Path(__file__).parents[1] / "overlay" / "patches" / "ensure-zip-import-packages.py"
+        result = subprocess.run(
+            [sys.executable, str(helper), str(root)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        runtime = self.root / "zip-import-runtime.zip"
+        with zipfile.ZipFile(runtime, "w") as bundle:
+            for path in root.rglob("*"):
+                if path.is_file():
+                    bundle.write(path, Path("hermes") / path.relative_to(root))
+        env = os.environ.copy()
+        env["PYTHONPATH"] = f"{runtime}/hermes"
+        probe = subprocess.run(
+            [sys.executable, "-S", "-c", "from plugins.browser import _common; assert _common.AVAILABLE"],
+            cwd=self.root,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+
+        helper_command = '"$HOST_PYTHON" "$ROOT/overlay/patches/ensure-zip-import-packages.py" "$STAGE/hermes"'
+        for script_name in ("package-native-ios.sh", "package-hermesrt-linux.sh"):
+            source = (Path(__file__).parents[1] / "build" / script_name).read_text(encoding="utf-8")
+            self.assertIn(helper_command, source, script_name)
+            self.assertIn("assert 'hermes/plugins/browser/__init__.py' in names", source, script_name)
+            archive_command = 'python3 - "$STAGE" "$OUTPUT"' if script_name.endswith("linux.sh") else 'python3 - "$STAGE" "$ARCHIVE"'
+            self.assertLess(source.index(helper_command), source.index(archive_command), script_name)
 
 
 if __name__ == "__main__":

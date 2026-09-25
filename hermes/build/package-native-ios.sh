@@ -72,7 +72,7 @@ for module in bootstrap.py server.py mcp_server.py; do
   [ -f "$WEBUI_SOURCE/$module" ] && cp "$WEBUI_SOURCE/$module" "$STAGE/hermes-webui/"
 done
 "$HOST_PYTHON" "$ROOT/overlay/patches/patch-webui-zip.py" "$STAGE/hermes-webui/api/config.py"
-[ -d "$STAGE/hermes/plugins/browser" ] && : > "$STAGE/hermes/plugins/browser/__init__.py"
+"$HOST_PYTHON" "$ROOT/overlay/patches/ensure-zip-import-packages.py" "$STAGE/hermes"
 cp "$ROOT/overlay/python/sitecustomize.py" "$STAGE/python/sitecustomize.py"
 cp -a "$ROOT/overlay" "$STAGE/overlay"
 # Native CPython modules are required to be statically linked into libpython.
@@ -143,6 +143,7 @@ with zipfile.ZipFile(sys.argv[1]) as z:
     names = set(z.namelist())
     assert 'python/encodings/__init__.py' in names
     assert 'hermes/hermes_cli/main.py' in names
+    assert 'hermes/plugins/browser/__init__.py' in names
     assert not any(n.endswith(('.so', '.dylib', '.pyd', '.wasm')) for n in names)
 PY
 cp "$ARCHIVE" "$ROOT/hermesrt.zip"
