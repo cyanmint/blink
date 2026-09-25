@@ -170,6 +170,7 @@ static pthread_once_t runtime_init_once = PTHREAD_ONCE_INIT;
 static int runtime_init_result = 70;
 
 static void initialize_runtime_once(void) {
+    report_runtime_message("hermes: registering native Python modules");
     setenv("HERMES_IOS_TERMINAL", "1", 1);
     hermes_register_native_modules();
 
@@ -223,6 +224,7 @@ static void initialize_runtime_once(void) {
     }
     config.module_search_paths_set = 1;
 
+    report_runtime_message("hermes: initializing embedded CPython");
     status = Py_InitializeFromConfig(&config);
     if (PyStatus_Exception(status)) {
         report_runtime_message(status.err_msg == NULL ? "hermes: Python initialization failed" : status.err_msg);
@@ -231,8 +233,10 @@ static void initialize_runtime_once(void) {
     }
 
     PyConfig_Clear(&config);
+    report_runtime_message("hermes: releasing initialization thread state");
     PyEval_SaveThread();
     runtime_init_result = 0;
+    report_runtime_message("hermes: embedded CPython initialized");
 }
 
 static int set_command_argv(int argc, char **argv) {
@@ -319,12 +323,15 @@ static int run_hermes_command(int argc, char **argv) {
 }
 
 static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
+    report_runtime_message("hermes: runtime command entered");
     pthread_once(&runtime_init_once, initialize_runtime_once);
     if (runtime_init_result != 0) return runtime_init_result;
 
     /* All commands use the main interpreter: it is the only configuration
      * supported by PyGILState_Ensure and by the linked legacy extensions. */
+    report_runtime_message("hermes: acquiring CPython thread state");
     PyGILState_STATE gil_state = PyGILState_Ensure();
+    report_runtime_message("hermes: CPython thread state acquired");
     PyObject *old_argv = PySys_GetObject("argv");
     PyObject *saved_argv = old_argv == NULL ? NULL : PySequence_List(old_argv);
     if (saved_argv == NULL) {
@@ -333,13 +340,18 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
         report_runtime_message("hermes: unable to preserve command arguments");
         return 70;
     }
+    report_runtime_message("hermes: installing command arguments");
     int result = set_command_argv(argc, argv);
     if (result == 0) {
+        report_runtime_message("hermes: importing sitecustomize");
         PyObject *bootstrap = PyImport_ImportModule("sitecustomize");
         if (bootstrap == NULL) {
             result = report_python_error("import sitecustomize");
         } else {
             Py_DECREF(bootstrap);
+            report_runtime_message(python_mode
+                ? "hermes: dispatching Python command"
+                : "hermes: dispatching Hermes command");
             result = python_mode ? run_python_command(argc, argv)
                                  : run_hermes_command(argc, argv);
         }
@@ -348,6 +360,7 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
     if (PySys_SetObject("argv", saved_argv) != 0) PyErr_Clear();
     Py_DECREF(saved_argv);
     PyGILState_Release(gil_state);
+    report_runtime_message("hermes: runtime command returned");
     return result;
 }
 

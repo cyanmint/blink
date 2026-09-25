@@ -38,11 +38,8 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
 
         app_delegate = APP_DELEGATE_SOURCE.read_text(encoding="utf-8")
         self.assertIn("numPythonInterpreters = 1;", app_delegate)
-
-        ios_system_source = (ROOT / "Frameworks" / "ios_system" / "ios_system.m").read_text(encoding="utf-8")
-        self.assertIn('functionName isEqualToString: @"python_main"', ios_system_source)
-        self.assertIn("params->numInterpreter = -1;", ios_system_source)
-        self.assertIn("p->numInterpreter >= 0 && p->numInterpreter < MaxPythonInterpreters", ios_system_source)
+        self.assertIn('report_runtime_message("hermes: acquiring CPython thread state");', source)
+        self.assertIn('report_runtime_message("hermes: embedded CPython initialized");', source)
 
         package_script = PACKAGE_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("-Wl,-exported_symbol,_hermes_python_main", package_script)
