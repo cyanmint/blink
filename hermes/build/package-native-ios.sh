@@ -111,6 +111,7 @@ CC=${CC:-arm64-apple-ios-clang}
   -L"$OPENSSL_INSTALL/lib" -lssl -lcrypto -Wl,-force_load,"$LIBFFI_INSTALL/lib/libffi.a" "$TARGET_ROOT/ios_compat.o" \
   -dynamiclib -install_name "@rpath/HermesRuntime.framework/HermesRuntime" \
   -Wl,-exported_symbol,_hermes_runtime_main \
+  -Wl,-exported_symbol,_hermes_python_main \
   -o "$FRAMEWORK/HermesRuntime"
 chmod 755 "$FRAMEWORK/HermesRuntime"
 cat > "$FRAMEWORK/Info.plist" <<'PLIST'
@@ -128,6 +129,7 @@ cat > "$FRAMEWORK/Headers/HermesRuntime.h" <<'HEADER'
 #ifndef HERMES_RUNTIME_H
 #define HERMES_RUNTIME_H
 int hermes_runtime_main(int argc, char **argv);
+int hermes_python_main(int argc, char **argv);
 #endif
 HEADER
 cat > "$FRAMEWORK/Modules/module.modulemap" <<'MODULEMAP'

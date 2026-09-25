@@ -78,5 +78,26 @@ def _install_hash_fallbacks() -> None:
     hashlib.blake2s = lambda data=b"", digest_size=32, **_: _FallbackHash(data, digest_size)
 
 
+def _install_managed_low_level_threads() -> None:
+    """Make legacy _thread workers visible to interpreter shutdown."""
+    try:
+        import _thread
+        import threading
+    except Exception:
+        return
+
+    def start_new_thread(function, args, kwargs=None):
+        thread = threading.Thread(
+            target=function, args=args, kwargs={} if kwargs is None else kwargs,
+            daemon=False,
+        )
+        thread.start()
+        return thread.ident
+
+    _thread.start_new_thread = start_new_thread
+    _thread.start_new = start_new_thread
+
+
 _install_zip_metadata_fallbacks()
 _install_hash_fallbacks()
+_install_managed_low_level_threads()

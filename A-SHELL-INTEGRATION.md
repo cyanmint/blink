@@ -46,6 +46,25 @@ track those HermesLink-created background jobs; `fg` waits for completion and
 `bg` selects an already-running job. True stop-and-resume job control still
 requires thread-level suspend/resume support in `ios_system`.
 
+The embedded Python runtime is initialized once per app process. Each `python`
+or `python3` command runs in a fresh CPython sub-interpreter, so nested calls
+through `os.system()` and commands in separate Blink sessions do not try to
+initialize or finalize the process-global interpreter concurrently. The
+sub-interpreters share CPython's GIL to remain compatible with a-Shell's
+statically linked legacy extensions: independent commands can overlap while
+waiting on I/O, but CPU-bound Python bytecode does not run on multiple cores.
+Command teardown uses CPython's thread-shutdown hooks, which also stop
+`ThreadPoolExecutor` workers before the interpreter is destroyed. Daemon
+threads are disabled because they can outlive the command interpreter.
+The app command dictionary binds both `sh` and the `dash` name selected by
+`ios_system` for non-`-c` invocations to HermesLink's `sh_main`. `sh -c`
+splits unquoted `&&`/`||` chains and dispatches each selected command through
+`ios_system`; script-file, stdin, and interactive modes use the same command
+boundary one input line at a time. Script mode prints a warning because this
+is an `ios_system` compatibility shim, not a full POSIX `dash` implementation:
+expansions, functions, and compound control structures in script files are
+not interpreted by this line-based mode.
+
 ## HermesLink-created glue
 
 - `hermes/overlay/python/sitecustomize.py`: keeps the runtime's pure-Python

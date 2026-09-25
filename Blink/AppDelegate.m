@@ -109,6 +109,8 @@ void __setupProcessEnv(void) {
   // must never win over the symbols linked into HermesRuntime.framework.
   replaceCommand(@"python", @"python_main", false);
   replaceCommand(@"python3", @"python_main", false);
+  replaceCommand(@"sh", @"sh_main", false);
+  replaceCommand(@"dash", @"sh_main", false);
   replaceCommand(@"hermes", @"hermes_main", false);
   dispatch_async(bgQueue, ^{
     __setupProcessEnv(); // we should call this after ios_system initializeEnvironment to override its defaults.
