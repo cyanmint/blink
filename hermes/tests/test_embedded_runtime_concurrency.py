@@ -34,6 +34,8 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
         self.assertIn('PySys_SetObject("argv", saved_argv)', source)
         self.assertIn("Py_IsInitialized()", source)
         self.assertIn("hermes_runtime_prepare", source)
+        self.assertIn("hermes_runtime_initialize(void)", source)
+        self.assertIn("if (!pthread_main_np())", source)
         self.assertIn("append_existing_runtime_paths", source)
         self.assertIn("config.install_signal_handlers = 0;", source)
         self.assertIn("config.configure_c_stdio = 0;", source)
@@ -45,14 +47,20 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
         self.assertIn("numPythonInterpreters = 1;", app_delegate)
         self.assertLess(app_delegate.index("hermes_runtime_prepare()"),
                         app_delegate.index("initializeEnvironment()"))
+        self.assertIn('setenv("HERMES_RUNTIME_ROOT", runtimeRoot.UTF8String, 1);', app_delegate)
+        self.assertIn("hermes_runtime_initialize()", app_delegate)
+        self.assertLess(app_delegate.index('setenv("HERMES_RUNTIME_ROOT", runtimeRoot.UTF8String, 1);'),
+                        app_delegate.index("hermes_runtime_initialize()"))
         self.assertIn('report_runtime_message("hermes: acquiring CPython thread state");', source)
         self.assertIn('report_runtime_message("hermes: embedded CPython initialized");', source)
 
         package_script = PACKAGE_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("-Wl,-exported_symbol,_hermes_python_main", package_script)
         self.assertIn("-Wl,-exported_symbol,_hermes_runtime_prepare", package_script)
+        self.assertIn("-Wl,-exported_symbol,_hermes_runtime_initialize", package_script)
         self.assertIn("int hermes_python_main(int argc, char **argv);", package_script)
         self.assertIn("int hermes_runtime_prepare(void);", package_script)
+        self.assertIn("int hermes_runtime_initialize(void);", package_script)
 
         build_script = (ROOT / "hermes" / "build" / "build-native-ios.sh").read_text(encoding="utf-8")
         self.assertIn("PyImport_AppendInittab(\"{name}\", PyInit_{name}) != 0", build_script)

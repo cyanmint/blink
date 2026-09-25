@@ -42,6 +42,7 @@
 #include "Blink-Swift.h"
 
 extern int hermes_runtime_prepare(void);
+extern int hermes_runtime_initialize(void);
 
 #ifdef BLINK_BUILD_ENABLED
 extern void build_auto_start_wg_ports(void);
@@ -143,6 +144,19 @@ void __setupProcessEnv(void) {
   setenv("HERMES_WEBUI_DEFAULT_WORKSPACE", documentsPath.UTF8String, 1);
   setenv("TERMINAL_CWD", documentsPath.UTF8String, 1);
   setenv("PWD", documentsPath.UTF8String, 1);
+
+  NSString *runtimeRoot = [NSBundle mainBundle].resourcePath;
+  NSString *runtimeArchive = [runtimeRoot stringByAppendingPathComponent:@"hermesrt.zip"];
+  if (runtimeRoot.length > 0 &&
+      [[NSFileManager defaultManager] fileExistsAtPath:runtimeArchive]) {
+    setenv("HERMES_RUNTIME_ROOT", runtimeRoot.UTF8String, 1);
+    if (hermes_runtime_initialize() != 0) {
+      HermesLinkAppendLog("embedded CPython initialization failed on the main thread");
+      NSLog(@"Failed to initialize embedded CPython on the main thread");
+    }
+  } else {
+    HermesLinkAppendLog("embedded CPython initialization skipped: hermesrt.zip is missing");
+  }
   
   NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
   [nc addObserver:self

@@ -313,6 +313,16 @@ static void initialize_runtime_once(void) {
     report_runtime_message("hermes: embedded CPython initialized");
 }
 
+__attribute__((visibility("default")))
+int hermes_runtime_initialize(void) {
+    if (!pthread_main_np()) {
+        report_runtime_message("hermes: CPython initialization must run on the main thread");
+        return 70;
+    }
+    pthread_once(&runtime_init_once, initialize_runtime_once);
+    return runtime_init_result;
+}
+
 static int set_command_argv(int argc, char **argv) {
     wchar_t **wide_argv = PyMem_RawCalloc((size_t)argc + 1, sizeof(*wide_argv));
     if (wide_argv == NULL) {
@@ -398,8 +408,7 @@ static int run_hermes_command(int argc, char **argv) {
 
 static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
     report_runtime_message("hermes: runtime command entered");
-    pthread_once(&runtime_init_once, initialize_runtime_once);
-    if (runtime_init_result != 0) return runtime_init_result;
+    if (hermes_runtime_initialize() != 0) return runtime_init_result;
 
     /* All commands use the main interpreter: it is the only configuration
      * supported by PyGILState_Ensure and by the linked legacy extensions. */

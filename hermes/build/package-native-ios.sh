@@ -113,6 +113,7 @@ CC=${CC:-arm64-apple-ios-clang}
   -Wl,-exported_symbol,_hermes_runtime_main \
   -Wl,-exported_symbol,_hermes_python_main \
   -Wl,-exported_symbol,_hermes_runtime_prepare \
+  -Wl,-exported_symbol,_hermes_runtime_initialize \
   -o "$FRAMEWORK/HermesRuntime"
 chmod 755 "$FRAMEWORK/HermesRuntime"
 cat > "$FRAMEWORK/Info.plist" <<'PLIST'
@@ -132,6 +133,7 @@ cat > "$FRAMEWORK/Headers/HermesRuntime.h" <<'HEADER'
 int hermes_runtime_main(int argc, char **argv);
 int hermes_python_main(int argc, char **argv);
 int hermes_runtime_prepare(void);
+int hermes_runtime_initialize(void);
 #endif
 HEADER
 cat > "$FRAMEWORK/Modules/module.modulemap" <<'MODULEMAP'
