@@ -368,7 +368,7 @@ with output.open("w", encoding="utf-8", newline="\n") as stream:
         stream.write(f"PyMODINIT_FUNC PyInit_{name}(void);\n")
     stream.write("\nint hermes_register_native_modules(void) {\n")
     for name in modules:
-        stream.write(f'    PyImport_AppendInittab("{name}", PyInit_{name});\n')
+        stream.write(f'    if (PyImport_AppendInittab("{name}", PyInit_{name}) != 0) return -1;\n')
     stream.write("    return 0;\n}\n")
 PY
 (cd "$TARGET_ROOT" && \

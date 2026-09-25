@@ -163,6 +163,74 @@ static void flush_python_stdio(void) {
 
 int hermes_register_native_modules(void);
 
+static const char *runtime_suffixes[] = {
+    "", "/python", "/hermes", "/hermes-webui", "/python/site-packages"
+};
+static pthread_once_t native_modules_once = PTHREAD_ONCE_INIT;
+static int native_modules_result = -1;
+static int runtime_uses_existing_interpreter;
+static int runtime_paths_installed;
+
+static void register_native_modules_once(void) {
+    if (Py_IsInitialized()) {
+        /* A-Shell or another host component initialized the shared CPython
+         * runtime first. AppendInittab is fatal after that point; adopt the
+         * existing main interpreter instead of attempting late registration. */
+        runtime_uses_existing_interpreter = 1;
+        native_modules_result = 0;
+        report_runtime_message("hermes: adopting existing CPython runtime; skipping inittab registration");
+        return;
+    }
+    native_modules_result = hermes_register_native_modules();
+    if (native_modules_result == 0) {
+        report_runtime_message("hermes: native Python modules registered");
+    } else {
+        report_runtime_message("hermes: native Python module registration failed");
+    }
+}
+
+__attribute__((visibility("default")))
+int hermes_runtime_prepare(void) {
+    pthread_once(&native_modules_once, register_native_modules_once);
+    return native_modules_result;
+}
+
+static int append_existing_runtime_paths(void) {
+    const char *runtime_root = getenv("HERMES_RUNTIME_ROOT");
+    char runtime_path[PATH_MAX];
+    if (runtime_root == NULL || runtime_root[0] == '\0') runtime_root = ".";
+    if (snprintf(runtime_path, sizeof(runtime_path), "%s/hermesrt.zip", runtime_root)
+            >= (int)sizeof(runtime_path)) {
+        report_runtime_message("hermes: runtime path is too long");
+        return -1;
+    }
+
+    PyObject *sys_path = PySys_GetObject("path");
+    if (sys_path == NULL || !PyList_Check(sys_path)) {
+        PyErr_SetString(PyExc_RuntimeError, "existing Python runtime has no sys.path list");
+        return -1;
+    }
+    for (size_t i = 0; i < sizeof(runtime_suffixes) / sizeof(runtime_suffixes[0]); ++i) {
+        char path[PATH_MAX];
+        if (snprintf(path, sizeof(path), "%s%s", runtime_path, runtime_suffixes[i])
+                >= (int)sizeof(path)) {
+            PyErr_SetString(PyExc_RuntimeError, "runtime search path is too long");
+            return -1;
+        }
+        PyObject *entry = PyUnicode_DecodeFSDefault(path);
+        if (entry == NULL) return -1;
+        int present = PySequence_Contains(sys_path, entry);
+        if (present == 0 && PyList_Append(sys_path, entry) != 0) {
+            Py_DECREF(entry);
+            return -1;
+        }
+        Py_DECREF(entry);
+        if (present < 0) return -1;
+    }
+    runtime_paths_installed = 1;
+    return 0;
+}
+
 /* Keep CPython initialized for the app lifetime and run every command in the
  * main interpreter.  The iOS build contains legacy static extensions, and
  * CPython's PyGILState API is only supported with the main interpreter. */
@@ -170,9 +238,15 @@ static pthread_once_t runtime_init_once = PTHREAD_ONCE_INIT;
 static int runtime_init_result = 70;
 
 static void initialize_runtime_once(void) {
-    report_runtime_message("hermes: registering native Python modules");
+    if (hermes_runtime_prepare() != 0) return;
     setenv("HERMES_IOS_TERMINAL", "1", 1);
-    hermes_register_native_modules();
+
+    if (Py_IsInitialized()) {
+        runtime_uses_existing_interpreter = 1;
+        runtime_init_result = 0;
+        report_runtime_message("hermes: reusing initialized CPython runtime");
+        return;
+    }
 
     const char *runtime_root = getenv("HERMES_RUNTIME_ROOT");
     char runtime_path[PATH_MAX];
@@ -187,6 +261,9 @@ static void initialize_runtime_once(void) {
     PyConfig_InitIsolatedConfig(&config);
     config.parse_argv = 0;
     config.use_system_logger = 0;
+    /* ios_system owns signal routing and its command-specific terminal streams. */
+    config.install_signal_handlers = 0;
+    config.configure_c_stdio = 0;
     config.buffered_stdio = 0;
     config.site_import = 0;
 
@@ -197,9 +274,6 @@ static void initialize_runtime_once(void) {
         return;
     }
 
-    const char *runtime_suffixes[] = {
-        "", "/python", "/hermes", "/hermes-webui", "/python/site-packages"
-    };
     for (size_t i = 0; i < sizeof(runtime_suffixes) / sizeof(runtime_suffixes[0]); ++i) {
         char path[PATH_MAX];
         if (snprintf(path, sizeof(path), "%s%s", runtime_path,
@@ -332,6 +406,12 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
     report_runtime_message("hermes: acquiring CPython thread state");
     PyGILState_STATE gil_state = PyGILState_Ensure();
     report_runtime_message("hermes: CPython thread state acquired");
+    if (runtime_uses_existing_interpreter && !runtime_paths_installed &&
+            append_existing_runtime_paths() != 0) {
+        int path_error = report_python_error("configure existing runtime paths");
+        PyGILState_Release(gil_state);
+        return path_error;
+    }
     PyObject *old_argv = PySys_GetObject("argv");
     PyObject *saved_argv = old_argv == NULL ? NULL : PySequence_List(old_argv);
     if (saved_argv == NULL) {

@@ -112,6 +112,7 @@ CC=${CC:-arm64-apple-ios-clang}
   -dynamiclib -install_name "@rpath/HermesRuntime.framework/HermesRuntime" \
   -Wl,-exported_symbol,_hermes_runtime_main \
   -Wl,-exported_symbol,_hermes_python_main \
+  -Wl,-exported_symbol,_hermes_runtime_prepare \
   -o "$FRAMEWORK/HermesRuntime"
 chmod 755 "$FRAMEWORK/HermesRuntime"
 cat > "$FRAMEWORK/Info.plist" <<'PLIST'
@@ -130,6 +131,7 @@ cat > "$FRAMEWORK/Headers/HermesRuntime.h" <<'HEADER'
 #define HERMES_RUNTIME_H
 int hermes_runtime_main(int argc, char **argv);
 int hermes_python_main(int argc, char **argv);
+int hermes_runtime_prepare(void);
 #endif
 HEADER
 cat > "$FRAMEWORK/Modules/module.modulemap" <<'MODULEMAP'

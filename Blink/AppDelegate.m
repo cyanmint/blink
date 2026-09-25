@@ -41,6 +41,8 @@
 #include "xcall.h"
 #include "Blink-Swift.h"
 
+extern int hermes_runtime_prepare(void);
+
 #ifdef BLINK_BUILD_ENABLED
 extern void build_auto_start_wg_ports(void);
 extern void rebind_ports(void);
@@ -82,6 +84,9 @@ void __setupProcessEnv(void) {
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
   HermesLinkAppendLog("application didFinishLaunching");
+  if (hermes_runtime_prepare() != 0) {
+    NSLog(@"Failed to prepare Hermes CPython native modules");
+  }
   
   [Migrator perform];
 

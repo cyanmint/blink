@@ -32,18 +32,30 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
         self.assertIn("new_python_globals", source)
         self.assertIn("PySequence_List(old_argv)", source)
         self.assertIn('PySys_SetObject("argv", saved_argv)', source)
+        self.assertIn("Py_IsInitialized()", source)
+        self.assertIn("hermes_runtime_prepare", source)
+        self.assertIn("append_existing_runtime_paths", source)
+        self.assertIn("config.install_signal_handlers = 0;", source)
+        self.assertIn("config.configure_c_stdio = 0;", source)
         self.assertNotIn('setenv("HERMES_WEBUI_HOST"', source)
         self.assertNotIn('setenv("HERMES_WEBUI_PORT"', source)
         self.assertNotIn("wait_for_command_threads", source)
 
         app_delegate = APP_DELEGATE_SOURCE.read_text(encoding="utf-8")
         self.assertIn("numPythonInterpreters = 1;", app_delegate)
+        self.assertLess(app_delegate.index("hermes_runtime_prepare()"),
+                        app_delegate.index("initializeEnvironment()"))
         self.assertIn('report_runtime_message("hermes: acquiring CPython thread state");', source)
         self.assertIn('report_runtime_message("hermes: embedded CPython initialized");', source)
 
         package_script = PACKAGE_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("-Wl,-exported_symbol,_hermes_python_main", package_script)
+        self.assertIn("-Wl,-exported_symbol,_hermes_runtime_prepare", package_script)
         self.assertIn("int hermes_python_main(int argc, char **argv);", package_script)
+        self.assertIn("int hermes_runtime_prepare(void);", package_script)
+
+        build_script = (ROOT / "hermes" / "build" / "build-native-ios.sh").read_text(encoding="utf-8")
+        self.assertIn("PyImport_AppendInittab(\"{name}\", PyInit_{name}) != 0", build_script)
 
     def test_python_dispatch_mode_is_not_process_global(self) -> None:
         source = COMMAND_SOURCE.read_text(encoding="utf-8")
