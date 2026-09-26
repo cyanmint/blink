@@ -19,6 +19,15 @@ class _ResponseStream:
         return None
 
 
+def _as_namespace(value):
+    """Convert JSON response items to objects expected by the Responses event consumer."""
+    if isinstance(value, dict):
+        return SimpleNamespace(**{key: _as_namespace(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return [_as_namespace(item) for item in value]
+    return value
+
+
 class _ResponsesCompat:
     def __init__(self, client):
         self._client = client
@@ -52,12 +61,26 @@ class _ResponsesCompat:
             raise RuntimeError("HTTP %s: %s" % (response.status_code, body))
         result = response.json()
         events = []
-        for item in result.get("output") or []:
-            for part in item.get("content") or []:
-                text = part.get("text") if isinstance(part, dict) else None
-                if text:
-                    events.append({"type": "response.output_text.delta", "delta": text})
-        events.append({"type": "response.completed", "response": result})
+        output = result.get("output")
+        for index, item in enumerate(output if isinstance(output, list) else []):
+            if not isinstance(item, dict):
+                continue
+            events.append({
+                "type": "response.output_item.added",
+                "output_index": index,
+                "item": _as_namespace(item),
+            })
+            if item.get("type") == "message":
+                for part in item.get("content") or []:
+                    text = part.get("text") if isinstance(part, dict) and part.get("type") == "output_text" else None
+                    if isinstance(text, str) and text:
+                        events.append({"type": "response.output_text.delta", "delta": text})
+            events.append({
+                "type": "response.output_item.done",
+                "output_index": index,
+                "item": _as_namespace(item),
+            })
+        events.append({"type": "response.completed", "response": _as_namespace(result)})
         return _ResponseStream(events)
 
 
