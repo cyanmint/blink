@@ -41,6 +41,34 @@ def patch_ios_terminal(path: Path) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
 
 
+def patch_ios_local_terminal(path: Path) -> None:
+    """Fail clearly instead of trying subprocess.Popen for local shell on iOS."""
+    text = path.read_text(encoding="utf-8")
+    marker = "CPython disables subprocess creation on iOS"
+    if marker in text:
+        return
+    anchor = "        env = _acquire_env(plan, task_id)\n"
+    replacement = '''        if plan.env_type == "local" and (
+            sys.platform == "ios" or os.environ.get("HERMES_IOS_TERMINAL") == "1"
+        ):
+            return _error_json(
+                "The local terminal backend cannot run in embedded iOS Python: "
+                "CPython disables subprocess creation on iOS, while this backend "
+                "requires subprocess.Popen to start Bash. The command was not run "
+                "and no process was created. SSH also needs local subprocesses; "
+                "direct SDK backends may need subprocess-based SDK installation. "
+                "Use an API-backed backend, e.g. terminal.env_type='modal' with "
+                "TERMINAL_MODAL_MODE='managed' and an available Nous Tool Gateway.",
+                exit_code=126,
+                status="unsupported",
+            )
+        env = _acquire_env(plan, task_id)
+'''
+    if anchor not in text:
+        raise SystemExit(f"local terminal environment acquisition anchor not found: {path}")
+    path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8", newline="\n")
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         raise SystemExit("usage: patch-ios-stability.py <staging-hermes-root>")
@@ -48,6 +76,7 @@ def main() -> int:
     patch_usage_pricing(root / "agent" / "usage_pricing.py")
     patch_process_title(root / "hermes_cli" / "main.py")
     patch_ios_terminal(root / "hermes_cli" / "main.py")
+    patch_ios_local_terminal(root / "tools" / "terminal_tool.py")
     return 0
 
 
