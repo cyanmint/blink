@@ -45,12 +45,28 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
 
         app_delegate = APP_DELEGATE_SOURCE.read_text(encoding="utf-8")
         self.assertIn("numPythonInterpreters = 1;", app_delegate)
+        self.assertIn("static int HermesLinkInitializeCPython(void)", app_delegate)
+        self.assertIn("HermesLinkRuntimeStream(savedInput, stdin", app_delegate)
+        self.assertIn("HermesLinkRuntimeStream(savedOutput, stdout", app_delegate)
+        self.assertIn("HermesLinkRuntimeStream(savedError, stderr", app_delegate)
+        self.assertIn('fopen("/dev/null", mode)', app_delegate)
+        init_call = app_delegate.index("result = hermes_runtime_initialize();")
+        self.assertLess(app_delegate.index("FILE *savedInput = thread_stdin;"), init_call)
+        self.assertLess(app_delegate.index("thread_stdin = HermesLinkRuntimeStream"), init_call)
+        self.assertLess(app_delegate.index("thread_stdout = HermesLinkRuntimeStream"), init_call)
+        self.assertLess(app_delegate.index("thread_stderr = HermesLinkRuntimeStream"), init_call)
+        self.assertLess(init_call, app_delegate.index("thread_stdin = savedInput;", init_call))
+        self.assertLess(init_call, app_delegate.index("thread_stdout = savedOutput;", init_call))
+        self.assertLess(init_call, app_delegate.index("thread_stderr = savedError;", init_call))
         self.assertLess(app_delegate.index("hermes_runtime_prepare()"),
                         app_delegate.index("initializeEnvironment()"))
         self.assertIn('setenv("HERMES_RUNTIME_ROOT", runtimeRoot.UTF8String, 1);', app_delegate)
-        self.assertIn("hermes_runtime_initialize()", app_delegate)
+        self.assertIn("HermesLinkInitializeCPython()", app_delegate)
         self.assertLess(app_delegate.index('setenv("HERMES_RUNTIME_ROOT", runtimeRoot.UTF8String, 1);'),
-                        app_delegate.index("hermes_runtime_initialize()"))
+                        app_delegate.index(
+                            "HermesLinkInitializeCPython()",
+                            app_delegate.index("- (BOOL)application:"),
+                        ))
         self.assertIn('report_runtime_message("hermes: acquiring CPython thread state");', source)
         self.assertIn('report_runtime_message("hermes: embedded CPython initialized");', source)
 

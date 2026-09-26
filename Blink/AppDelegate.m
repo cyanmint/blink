@@ -40,9 +40,49 @@
 #include <libssh/callbacks.h>
 #include "xcall.h"
 #include "Blink-Swift.h"
+#include <stdio.h>
 
 extern int hermes_runtime_prepare(void);
 extern int hermes_runtime_initialize(void);
+
+static FILE *hermesRuntimeFallbackInput;
+static FILE *hermesRuntimeFallbackOutput;
+static FILE *hermesRuntimeFallbackError;
+
+static FILE *HermesLinkRuntimeStream(FILE *current, FILE *standard,
+                                     FILE **fallback, const char *mode) {
+  if (current != NULL) return current;
+  if (standard != NULL) return standard;
+  if (*fallback == NULL) *fallback = fopen("/dev/null", mode);
+  return *fallback;
+}
+
+static int HermesLinkInitializeCPython(void) {
+  FILE *savedInput = thread_stdin;
+  FILE *savedOutput = thread_stdout;
+  FILE *savedError = thread_stderr;
+
+  // CPython's iOS port resolves stdio to ios_system's TLS streams. During app
+  // startup there is no command session, so temporarily provide safe streams.
+  thread_stdin = HermesLinkRuntimeStream(savedInput, stdin,
+                                         &hermesRuntimeFallbackInput, "r");
+  thread_stdout = HermesLinkRuntimeStream(savedOutput, stdout,
+                                         &hermesRuntimeFallbackOutput, "w");
+  thread_stderr = HermesLinkRuntimeStream(savedError, stderr,
+                                         &hermesRuntimeFallbackError, "w");
+
+  int result = 70;
+  if (thread_stdin != NULL && thread_stdout != NULL && thread_stderr != NULL) {
+    result = hermes_runtime_initialize();
+  } else {
+    HermesLinkAppendLog("embedded CPython initialization skipped: no usable stdio streams");
+  }
+
+  thread_stdin = savedInput;
+  thread_stdout = savedOutput;
+  thread_stderr = savedError;
+  return result;
+}
 
 #ifdef BLINK_BUILD_ENABLED
 extern void build_auto_start_wg_ports(void);
@@ -150,7 +190,7 @@ void __setupProcessEnv(void) {
   if (runtimeRoot.length > 0 &&
       [[NSFileManager defaultManager] fileExistsAtPath:runtimeArchive]) {
     setenv("HERMES_RUNTIME_ROOT", runtimeRoot.UTF8String, 1);
-    if (hermes_runtime_initialize() != 0) {
+    if (HermesLinkInitializeCPython() != 0) {
       HermesLinkAppendLog("embedded CPython initialization failed on the main thread");
       NSLog(@"Failed to initialize embedded CPython on the main thread");
     }
