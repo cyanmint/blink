@@ -274,6 +274,17 @@ static void initialize_runtime_once(void) {
         return;
     }
 
+    // The a-Shell iOS getpath port reads Py_GetArgcArgv()[0] without checking
+    // for an empty vector; embedded startup must seed an argv before init.
+    wchar_t *runtime_argv[] = {L"./hermes"};
+    status = PyConfig_SetArgv(&config, 1, runtime_argv);
+    if (PyStatus_Exception(status)) {
+        report_runtime_message(status.err_msg == NULL
+            ? "hermes: Python argv configuration failed" : status.err_msg);
+        PyConfig_Clear(&config);
+        return;
+    }
+
     for (size_t i = 0; i < sizeof(runtime_suffixes) / sizeof(runtime_suffixes[0]); ++i) {
         char path[PATH_MAX];
         if (snprintf(path, sizeof(path), "%s%s", runtime_path,

@@ -81,6 +81,15 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
         build_script = (ROOT / "hermes" / "build" / "build-native-ios.sh").read_text(encoding="utf-8")
         self.assertIn("PyImport_AppendInittab(\"{name}\", PyInit_{name}) != 0", build_script)
 
+    def test_embedded_ios_runtime_sets_original_argv_before_path_init(self) -> None:
+        source = RUNTIME_SOURCE.read_text(encoding="utf-8")
+
+        argv_declaration = source.index('wchar_t *runtime_argv[] = {L"./hermes"};')
+        argv_setup = source.index("PyConfig_SetArgv(&config, 1, runtime_argv)")
+        runtime_init = source.index("Py_InitializeFromConfig(&config)")
+        self.assertLess(argv_declaration, argv_setup)
+        self.assertLess(argv_setup, runtime_init)
+
     def test_python_dispatch_mode_is_not_process_global(self) -> None:
         source = COMMAND_SOURCE.read_text(encoding="utf-8")
 
