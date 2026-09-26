@@ -76,6 +76,16 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
                         command_impl.index("PyEval_ReleaseThread(parent_tstate);"))
         self.assertLess(command_impl.index("PyEval_ReleaseThread(parent_tstate);"),
                         command_impl.index("PyEval_AcquireThread(command_tstate);"))
+        self.assertLess(command_impl.index('"hermes: command stage 2 acquiring GILState"'),
+                        command_impl.index('"hermes: command stage 3 GILState acquired"'))
+        self.assertLess(command_impl.index('"hermes: command stage 5 parent state allocated"'),
+                        command_impl.index('"hermes: command stage 6 GILState released"'))
+        self.assertLess(command_impl.index('"hermes: command stage 8 parent state acquired"'),
+                        command_impl.index('"hermes: command stage 9 creating sub-interpreter"'))
+        self.assertLess(command_impl.index('"hermes: command stage 9 creating sub-interpreter"'),
+                        command_impl.index('"hermes: command stage 10 sub-interpreter created"'))
+        self.assertLess(command_impl.index('"hermes: command stage 13 parent state detached"'),
+                        command_impl.index('"hermes: command stage 14 sub-interpreter attached"'))
         self.assertLess(command_impl.rindex("restore_command_stdio(&command_stdio)"),
                         command_impl.rindex("Py_EndInterpreter(command_tstate)"))
         self.assertLess(command_impl.rindex("Py_EndInterpreter(command_tstate)"),

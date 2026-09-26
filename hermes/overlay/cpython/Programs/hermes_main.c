@@ -476,12 +476,16 @@ static int run_hermes_command(int argc, char **argv) {
 static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
     report_runtime_message("hermes: runtime command entered");
     if (hermes_runtime_initialize() != 0) return runtime_init_result;
+    report_runtime_message("hermes: command stage 1 runtime ready");
 
     /* PyGILState is used only to obtain the main-interpreter anchor. Release
      * it before creating or switching to the command sub-interpreter. */
+    report_runtime_message("hermes: command stage 2 acquiring GILState");
     PyGILState_STATE gil_state = PyGILState_Ensure();
+    report_runtime_message("hermes: command stage 3 GILState acquired");
     PyInterpreterState *main_interpreter =
         PyThreadState_GetInterpreter(PyThreadState_Get());
+    report_runtime_message("hermes: command stage 4 main interpreter identified");
     PyThreadState *parent_tstate = PyThreadState_New(main_interpreter);
     if (parent_tstate == NULL) {
         if (PyErr_Occurred()) PyErr_Clear();
@@ -489,9 +493,13 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
         report_runtime_message("hermes: unable to allocate command thread state");
         return 70;
     }
+    report_runtime_message("hermes: command stage 5 parent state allocated");
     PyGILState_Release(gil_state);
+    report_runtime_message("hermes: command stage 6 GILState released");
 
+    report_runtime_message("hermes: command stage 7 acquiring parent state");
     PyEval_AcquireThread(parent_tstate);
+    report_runtime_message("hermes: command stage 8 parent state acquired");
     PyInterpreterConfig interpreter_config = {
         .use_main_obmalloc = 1,
         .allow_fork = 0,
@@ -503,6 +511,7 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
         .gil = PyInterpreterConfig_SHARED_GIL,
     };
     PyThreadState *command_tstate = NULL;
+    report_runtime_message("hermes: command stage 9 creating sub-interpreter");
     PyStatus interpreter_status = Py_NewInterpreterFromConfig(
         &command_tstate, &interpreter_config);
     if (PyStatus_Exception(interpreter_status) || command_tstate == NULL) {
@@ -515,11 +524,16 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
         PyThreadState_DeleteCurrent();
         return 70;
     }
+    report_runtime_message("hermes: command stage 10 sub-interpreter created");
     /* The GILState bootstrap has ended; interpreter switching below uses
      * explicit attach/release calls, never a live GILState pair. */
+    report_runtime_message("hermes: command stage 11 restoring parent state");
     PyThreadState_Swap(parent_tstate);
+    report_runtime_message("hermes: command stage 12 parent state restored");
     PyEval_ReleaseThread(parent_tstate);
+    report_runtime_message("hermes: command stage 13 parent state detached");
     PyEval_AcquireThread(command_tstate);
+    report_runtime_message("hermes: command stage 14 sub-interpreter attached");
 
     int result = append_command_runtime_paths() == 0
         ? 0 : report_python_error("configure command runtime paths");
