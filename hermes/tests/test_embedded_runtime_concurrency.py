@@ -18,25 +18,34 @@ PYTHON_OVERLAY = ROOT / "hermes" / "overlay" / "python"
 
 
 class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
-    def test_python_commands_use_the_shared_main_interpreter(self) -> None:
+    def test_each_python_command_uses_explicit_thread_state_ownership(self) -> None:
         source = RUNTIME_SOURCE.read_text(encoding="utf-8")
 
         self.assertIn("pthread_once(&runtime_init_once, initialize_runtime_once)", source)
         self.assertIn("PyGILState_Ensure()", source)
-        self.assertIn("PyGILState_Release(gil_state)", source)
-        self.assertNotIn("PyThreadState_New(", source)
-        self.assertNotIn("Py_NewInterpreterFromConfig(", source)
-        self.assertNotIn("Py_EndInterpreter(", source)
+        self.assertIn("PyThreadState_New(main_interpreter)", source)
+        self.assertIn("PyEval_AcquireThread(parent_tstate)", source)
+        self.assertIn("PyEval_ReleaseThread(parent_tstate)", source)
+        self.assertIn("Py_NewInterpreterFromConfig(", source)
+        self.assertIn(".use_main_obmalloc = 1,", source)
+        self.assertIn(".allow_threads = 1,", source)
+        self.assertIn(".allow_daemon_threads = 0,", source)
+        self.assertIn(".check_multi_interp_extensions = 0,", source)
+        self.assertIn(".gil = PyInterpreterConfig_SHARED_GIL,", source)
+        self.assertIn("Py_EndInterpreter(command_tstate);", source)
+        self.assertIn("PyThreadState_Clear(parent_tstate);", source)
+        self.assertIn("PyThreadState_DeleteCurrent();", source)
+        self.assertNotIn("HERMES_COMMAND_THREAD_SLOTS", source)
+        self.assertNotIn("pthread_cond_wait(&runtime_slots_available", source)
         self.assertNotIn("Py_FinalizeEx", source)
         self.assertNotIn("HERMES_PYTHON_MODE", source)
         self.assertIn("new_python_globals", source)
-        self.assertIn("PySequence_List(old_argv)", source)
-        self.assertIn('PySys_SetObject("argv", saved_argv)', source)
+        self.assertNotIn('PySys_SetObject("argv", saved_argv)', source)
         self.assertIn("Py_IsInitialized()", source)
         self.assertIn("hermes_runtime_prepare", source)
         self.assertIn("hermes_runtime_initialize(void)", source)
         self.assertIn("if (!pthread_main_np() && !Py_IsInitialized())", source)
-        self.assertIn("append_existing_runtime_paths", source)
+        self.assertIn("append_command_runtime_paths", source)
         self.assertIn("config.install_signal_handlers = 0;", source)
         self.assertIn("config.configure_c_stdio = 0;", source)
         self.assertNotIn('setenv("HERMES_WEBUI_HOST"', source)
@@ -51,10 +60,30 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
             source.index("install_command_stdio(&command_stdio)"),
             source.index("python_mode ? run_python_command"),
         )
-        self.assertLess(
-            source.index("restore_command_stdio(&command_stdio)"),
-            source.index("PyGILState_Release(gil_state)", source.index("restore_command_stdio(&command_stdio)")),
-        )
+        command_impl = source.split("static int hermes_runtime_main_impl", 1)[1]
+        self.assertLess(command_impl.index("PyGILState_Ensure()"),
+                        command_impl.index("PyThreadState_New(main_interpreter)"))
+        self.assertLess(command_impl.index("PyThreadState_New(main_interpreter)"),
+                        command_impl.index("PyGILState_Release(gil_state)"))
+        self.assertLess(command_impl.index("PyGILState_Release(gil_state)"),
+                        command_impl.index("PyEval_AcquireThread(parent_tstate)"))
+        subinterpreter_start = command_impl.index("Py_NewInterpreterFromConfig(")
+        self.assertNotIn("PyGILState_Ensure", command_impl[subinterpreter_start:])
+        self.assertNotIn("PyGILState_Release", command_impl[subinterpreter_start:])
+        self.assertLess(command_impl.index("PyEval_AcquireThread(parent_tstate)"),
+                        subinterpreter_start)
+        self.assertLess(command_impl.index("PyThreadState_Swap(parent_tstate);"),
+                        command_impl.index("PyEval_ReleaseThread(parent_tstate);"))
+        self.assertLess(command_impl.index("PyEval_ReleaseThread(parent_tstate);"),
+                        command_impl.index("PyEval_AcquireThread(command_tstate);"))
+        self.assertLess(command_impl.rindex("restore_command_stdio(&command_stdio)"),
+                        command_impl.rindex("Py_EndInterpreter(command_tstate)"))
+        self.assertLess(command_impl.rindex("Py_EndInterpreter(command_tstate)"),
+                        command_impl.rindex("PyThreadState_Swap(parent_tstate);"))
+        self.assertLess(command_impl.rindex("PyThreadState_Swap(parent_tstate);"),
+                        command_impl.rindex("PyThreadState_Clear(parent_tstate);"))
+        self.assertLess(command_impl.rindex("PyThreadState_Clear(parent_tstate);"),
+                        command_impl.rindex("PyThreadState_DeleteCurrent();"))
 
         app_delegate = APP_DELEGATE_SOURCE.read_text(encoding="utf-8")
         self.assertIn("numPythonInterpreters = 1;", app_delegate)
@@ -80,8 +109,8 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
                             "HermesLinkInitializeCPython()",
                             app_delegate.index("- (BOOL)application:"),
                         ))
-        self.assertIn('report_runtime_message("hermes: acquiring CPython thread state");', source)
         self.assertIn('report_runtime_message("hermes: embedded CPython initialized");', source)
+        self.assertNotIn("HERMES_COMMAND_THREAD_SLOTS", source)
 
         package_script = PACKAGE_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("-Wl,-exported_symbol,_hermes_python_main", package_script)

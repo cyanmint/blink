@@ -229,15 +229,12 @@ static const char *runtime_suffixes[] = {
 };
 static pthread_once_t native_modules_once = PTHREAD_ONCE_INIT;
 static int native_modules_result = -1;
-static int runtime_uses_existing_interpreter;
-static int runtime_paths_installed;
 
 static void register_native_modules_once(void) {
     if (Py_IsInitialized()) {
         /* A-Shell or another host component initialized the shared CPython
          * runtime first. AppendInittab is fatal after that point; adopt the
          * existing main interpreter instead of attempting late registration. */
-        runtime_uses_existing_interpreter = 1;
         native_modules_result = 0;
         report_runtime_message("hermes: adopting existing CPython runtime; skipping inittab registration");
         return;
@@ -256,7 +253,7 @@ int hermes_runtime_prepare(void) {
     return native_modules_result;
 }
 
-static int append_existing_runtime_paths(void) {
+static int append_command_runtime_paths(void) {
     const char *runtime_root = getenv("HERMES_RUNTIME_ROOT");
     char runtime_path[PATH_MAX];
     if (runtime_root == NULL || runtime_root[0] == '\0') runtime_root = ".";
@@ -288,13 +285,11 @@ static int append_existing_runtime_paths(void) {
         Py_DECREF(entry);
         if (present < 0) return -1;
     }
-    runtime_paths_installed = 1;
     return 0;
 }
 
-/* Keep CPython initialized for the app lifetime and run every command in the
- * main interpreter.  The iOS build contains legacy static extensions, and
- * CPython's PyGILState API is only supported with the main interpreter. */
+/* Keep CPython initialized for the app lifetime. The main interpreter owns
+ * legacy extensions; per-command sub-interpreters share its GIL and allocator. */
 static pthread_once_t runtime_init_once = PTHREAD_ONCE_INIT;
 static int runtime_init_result = 70;
 
@@ -303,7 +298,6 @@ static void initialize_runtime_once(void) {
     setenv("HERMES_IOS_TERMINAL", "1", 1);
 
     if (Py_IsInitialized()) {
-        runtime_uses_existing_interpreter = 1;
         runtime_init_result = 0;
         report_runtime_message("hermes: reusing initialized CPython runtime");
         return;
@@ -483,27 +477,56 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
     report_runtime_message("hermes: runtime command entered");
     if (hermes_runtime_initialize() != 0) return runtime_init_result;
 
-    /* All commands use the main interpreter: it is the only configuration
-     * supported by PyGILState_Ensure and by the linked legacy extensions. */
-    report_runtime_message("hermes: acquiring CPython thread state");
+    /* PyGILState is used only to obtain the main-interpreter anchor. Release
+     * it before creating or switching to the command sub-interpreter. */
     PyGILState_STATE gil_state = PyGILState_Ensure();
-    report_runtime_message("hermes: CPython thread state acquired");
-    if (runtime_uses_existing_interpreter && !runtime_paths_installed &&
-            append_existing_runtime_paths() != 0) {
-        int path_error = report_python_error("configure existing runtime paths");
+    PyInterpreterState *main_interpreter =
+        PyThreadState_GetInterpreter(PyThreadState_Get());
+    PyThreadState *parent_tstate = PyThreadState_New(main_interpreter);
+    if (parent_tstate == NULL) {
+        if (PyErr_Occurred()) PyErr_Clear();
         PyGILState_Release(gil_state);
-        return path_error;
-    }
-    PyObject *old_argv = PySys_GetObject("argv");
-    PyObject *saved_argv = old_argv == NULL ? NULL : PySequence_List(old_argv);
-    if (saved_argv == NULL) {
-        PyErr_Clear();
-        PyGILState_Release(gil_state);
-        report_runtime_message("hermes: unable to preserve command arguments");
+        report_runtime_message("hermes: unable to allocate command thread state");
         return 70;
     }
-    report_runtime_message("hermes: installing command arguments");
-    int result = set_command_argv(argc, argv);
+    PyGILState_Release(gil_state);
+
+    PyEval_AcquireThread(parent_tstate);
+    PyInterpreterConfig interpreter_config = {
+        .use_main_obmalloc = 1,
+        .allow_fork = 0,
+        .allow_exec = 0,
+        .allow_threads = 1,
+        .allow_daemon_threads = 0,
+        /* Setup_iOS.local includes legacy single-phase extensions. */
+        .check_multi_interp_extensions = 0,
+        .gil = PyInterpreterConfig_SHARED_GIL,
+    };
+    PyThreadState *command_tstate = NULL;
+    PyStatus interpreter_status = Py_NewInterpreterFromConfig(
+        &command_tstate, &interpreter_config);
+    if (PyStatus_Exception(interpreter_status) || command_tstate == NULL) {
+        report_runtime_message(interpreter_status.err_msg == NULL
+            ? "hermes: unable to create command interpreter"
+            : interpreter_status.err_msg);
+        if (command_tstate != NULL) Py_EndInterpreter(command_tstate);
+        PyThreadState_Swap(parent_tstate);
+        PyThreadState_Clear(parent_tstate);
+        PyThreadState_DeleteCurrent();
+        return 70;
+    }
+    /* The GILState bootstrap has ended; interpreter switching below uses
+     * explicit attach/release calls, never a live GILState pair. */
+    PyThreadState_Swap(parent_tstate);
+    PyEval_ReleaseThread(parent_tstate);
+    PyEval_AcquireThread(command_tstate);
+
+    int result = append_command_runtime_paths() == 0
+        ? 0 : report_python_error("configure command runtime paths");
+    if (result == 0) {
+        report_runtime_message("hermes: installing command arguments");
+        result = set_command_argv(argc, argv);
+    }
     CommandStdio command_stdio = {0};
     if (result == 0 && install_command_stdio(&command_stdio) != 0) {
         result = report_python_error("configure command stdio");
@@ -524,9 +547,10 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
     }
     flush_python_stdio();
     restore_command_stdio(&command_stdio);
-    if (PySys_SetObject("argv", saved_argv) != 0) PyErr_Clear();
-    Py_DECREF(saved_argv);
-    PyGILState_Release(gil_state);
+    Py_EndInterpreter(command_tstate);
+    PyThreadState_Swap(parent_tstate);
+    PyThreadState_Clear(parent_tstate);
+    PyThreadState_DeleteCurrent();
     report_runtime_message("hermes: runtime command returned");
     return result;
 }

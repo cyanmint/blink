@@ -46,23 +46,27 @@ track those HermesLink-created background jobs; `fg` waits for completion and
 `bg` selects an already-running job. True stop-and-resume job control still
 requires thread-level suspend/resume support in `ios_system`.
 
-The embedded Python runtime is initialized once per app process. Every `python`
-or `python3` call enters CPython's main interpreter through `PyGILState_Ensure`;
-it does not create or destroy sub-interpreters. This keeps nested `os.system()`
-calls and separate Blink sessions on the supported main-interpreter path for
-CPython's GIL-state API and the a-Shell statically linked extensions. CPython's
-GIL serializes Python bytecode, but commands can overlap while Python releases
-the GIL for I/O. This does not provide CPU-bound Python parallelism or isolated
-`sys.modules` state between commands. `-c` and script code receive fresh global
-dictionaries, but `sys.argv`, imported modules, and extension-module globals are
-process-wide; a command that yields while running may observe another command's
-temporary `sys.argv`.
+The embedded CPython runtime is initialized once per app process. Every
+`python`, `python3`, or `hermes` command gets a fresh CPython 3.13 sub-interpreter
+with its own `sys.modules`, `sys.argv`, and Python standard streams.
+The sub-interpreters share CPython's GIL and allocator; the configuration permits
+the a-Shell build's legacy static extensions, but their behavior in these
+sub-interpreters still needs verification on the iOS runtime. The GIL serializes
+Python bytecode, but separate terminal commands can overlap during I/O without
+sharing interpreter-level state. CPU-bound bytecode is not parallelized across
+cores, and a native extension that holds the GIL can still delay another
+command. Each worker creates and owns its main-interpreter anchor state; the
+launcher releases its temporary `PyGILState` guard before switching to the
+command sub-interpreter, then uses explicit thread-state attach/detach calls.
+After `Py_EndInterpreter`, it clears and deletes the anchor state. There is no
+fixed slot cap or application-level slot mutex; Python bytecode still follows
+the shared-GIL limits described above.
 
-Python `threading` and `ThreadPoolExecutor` workers use the process-lifetime
-interpreter rather than being torn down at the end of each terminal command.
-Low-level `_thread` startup is wrapped as managed non-daemon threads by
-`sitecustomize.py`; long-lived workers can therefore continue after the
-command that started them returns.
+Each command interpreter is destroyed when its command completes. Python
+`threading` and `ThreadPoolExecutor` workers therefore must finish during
+interpreter shutdown; low-level `_thread` startup is wrapped as managed
+non-daemon threads by `sitecustomize.py` so CPython runs their shutdown hooks
+before destroying the interpreter.
 The app command dictionary binds both `sh` and the `dash` name selected by
 `ios_system` for non-`-c` invocations to HermesLink's `sh_main`. `sh -c`
 splits unquoted `&&`/`||` chains and dispatches each selected command through
