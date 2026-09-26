@@ -144,6 +144,7 @@ clang --target=arm64-apple-ios${DEPLOYMENT_TARGET} -isysroot "$SDK_ROOT" \
     py_cv_module__elementtree=n/a py_cv_module__uuid=n/a \
     ./configure --host=arm64-apple-ios${DEPLOYMENT_TARGET} \
     --build="$BUILD_TRIPLE" --with-build-python="$HOST_PYTHON" \
+    --with-openssl="$OPENSSL_INSTALL" --with-openssl-rpath=no \
     --without-ensurepip --disable-test-modules --disable-ipv6 --with-lto=no \
     --enable-framework)
 python3 - "$TARGET_ROOT/Makefile" <<'PY'
@@ -152,13 +153,17 @@ path = Path(__import__("sys").argv[1])
 text = path.read_text(encoding="utf-8")
 path.write_text(text.replace("Python.framework/Python", ""), encoding="utf-8", newline="\n")
 PY
-python3 - "$TARGET_ROOT/Modules/Setup.stdlib" "$TARGET_ROOT/Modules/Setup.local" "$TARGET_ROOT/Makefile" <<'PY'
+python3 - "$ROOT/build" "$TARGET_ROOT/Modules/Setup.stdlib" "$TARGET_ROOT/Modules/Setup.local" "$TARGET_ROOT/Makefile" <<'PY'
 import pathlib, sys
-source, target, makefile = sys.argv[1:]
+sys.path.insert(0, sys.argv[1])
+from configure_native_modules import ensure_required_static_modules
+
+source, target, makefile = sys.argv[2:]
 lines = pathlib.Path(source).read_text().splitlines()
 for i, line in enumerate(lines):
     if line.strip() == "*shared*": lines[i] = "*static*"
     if line.startswith("_decimal "): lines[i] += " -IModules/_decimal/libmpdec Modules/_decimal/libmpdec/libmpdec.a"
+lines = ensure_required_static_modules(lines)
 pathlib.Path(target).write_text("\n".join(lines) + "\n")
 objects = []
 for line in lines:

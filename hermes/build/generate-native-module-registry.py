@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 INITIALIZER_RE = re.compile(r"^_?PyInit_([A-Za-z_][A-Za-z0-9_]*)$")
+REQUIRED_NATIVE_MODULES = ("_ssl", "_hashlib")
 
 
 def parse_defined_initializers(nm_output: str) -> list[str]:
@@ -36,6 +37,14 @@ def render_registry(modules: list[str]) -> str:
     lines.extend(f'    PyImport_AppendInittab("{name}", PyInit_{name});' for name in modules)
     lines.extend(["    return 0;", "}", ""])
     return "\n".join(lines)
+
+
+def require_native_modules(modules: list[str]) -> None:
+    missing = sorted(set(REQUIRED_NATIVE_MODULES) - set(modules))
+    if missing:
+        raise RuntimeError(
+            "required native module initializer(s) were not compiled: " + ", ".join(missing)
+        )
 
 
 def discover_modules(objects: list[Path], nm: str = "nm") -> list[str]:
@@ -67,8 +76,12 @@ def main() -> int:
     modules = discover_modules(objects, nm=args.nm)
     if not modules:
         raise SystemExit("no CPython module initializers found in compiled objects")
+    require_native_modules(modules)
     args.output.write_text(render_registry(modules), encoding="utf-8", newline="\n")
-    print(f"Generated native module registry for {len(modules)} compiled module(s)")
+    print(
+        f"Generated native module registry for {len(modules)} compiled module(s): "
+        + ", ".join(modules)
+    )
     return 0
 
 

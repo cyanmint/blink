@@ -8,6 +8,11 @@ SPEC = importlib.util.spec_from_file_location("native_module_registry", SCRIPT_P
 registry = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(registry)
 
+CONFIG_PATH = Path(__file__).resolve().parents[1] / "build" / "configure_native_modules.py"
+CONFIG_SPEC = importlib.util.spec_from_file_location("native_module_config", CONFIG_PATH)
+module_config = importlib.util.module_from_spec(CONFIG_SPEC)
+CONFIG_SPEC.loader.exec_module(module_config)
+
 
 class NativeModuleRegistryTests(unittest.TestCase):
     def test_discovers_only_defined_python_module_initializers(self):
@@ -32,6 +37,26 @@ class NativeModuleRegistryTests(unittest.TestCase):
 
         self.assertIn("int hermes_register_native_modules(void) {", source)
         self.assertIn("return 0;", source)
+
+    def test_enables_ssl_extensions_when_configure_disables_them(self):
+        setup_lines = ["*static*", "#_ssl _ssl.c", "#_hashlib _hashopenssl.c"]
+
+        result = module_config.ensure_required_static_modules(setup_lines)
+
+        self.assertEqual(result[-2:], ["_ssl _ssl.c", "_hashlib _hashopenssl.c"])
+
+    def test_does_not_duplicate_ssl_extensions_already_enabled(self):
+        setup_lines = ["*static*", "_ssl _ssl.c", "_hashlib _hashopenssl.c"]
+
+        self.assertEqual(module_config.ensure_required_static_modules(setup_lines), setup_lines)
+
+
+    def test_fails_build_validation_if_ssl_initializer_is_missing(self):
+        with self.assertRaisesRegex(RuntimeError, "_ssl"):
+            registry.require_native_modules(["_hashlib", "zlib"])
+
+    def test_accepts_required_tls_initializers(self):
+        registry.require_native_modules(["_ssl", "_hashlib"])
 
 
 if __name__ == "__main__":
