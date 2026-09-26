@@ -326,8 +326,9 @@ static void initialize_runtime_once(void) {
 
 __attribute__((visibility("default")))
 int hermes_runtime_initialize(void) {
-    if (!pthread_main_np()) {
-        report_runtime_message("hermes: CPython initialization must run on the main thread");
+    // ios_system commands run on workers; only first-time init is main-thread-only.
+    if (!pthread_main_np() && !Py_IsInitialized()) {
+        report_runtime_message("hermes: CPython is not initialized; app startup must initialize it on the main thread");
         return 70;
     }
     pthread_once(&runtime_init_once, initialize_runtime_once);

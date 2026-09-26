@@ -35,7 +35,7 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
         self.assertIn("Py_IsInitialized()", source)
         self.assertIn("hermes_runtime_prepare", source)
         self.assertIn("hermes_runtime_initialize(void)", source)
-        self.assertIn("if (!pthread_main_np())", source)
+        self.assertIn("if (!pthread_main_np() && !Py_IsInitialized())", source)
         self.assertIn("append_existing_runtime_paths", source)
         self.assertIn("config.install_signal_handlers = 0;", source)
         self.assertIn("config.configure_c_stdio = 0;", source)
