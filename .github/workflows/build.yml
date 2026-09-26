@@ -244,13 +244,21 @@ jobs:
 
   build-app:
     name: Build HermesLink app
-    needs: [decide, publish-runtime]
+    needs: [decide, build-runtime-zip, build-native-runtime]
     if: >-
       always() &&
       needs.decide.outputs.run_app == 'true' &&
       (
-        needs.publish-runtime.result == 'success' ||
-        (needs.decide.outputs.run_runtime != 'true' && needs.publish-runtime.result == 'skipped')
+        (
+          needs.decide.outputs.run_runtime == 'true' &&
+          needs.build-runtime-zip.result == 'success' &&
+          needs.build-native-runtime.result == 'success'
+        ) ||
+        (
+          needs.decide.outputs.run_runtime != 'true' &&
+          needs.build-runtime-zip.result == 'skipped' &&
+          needs.build-native-runtime.result == 'skipped'
+        )
       )
     runs-on: macos-latest
     steps:
@@ -259,24 +267,39 @@ jobs:
         with:
           submodules: true
 
-      - name: Download hermesrt.zip from fixed release
+      - name: Download pure-Python archive from runtime build
+        if: needs.decide.outputs.run_runtime == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: hermesrt-zip
+          path: runtime-artifact/python
+
+      - name: Download native framework from runtime build
+        if: needs.decide.outputs.run_runtime == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: hermes-native-framework
+          path: runtime-artifact/native
+
+      - name: Download runtime assets from fixed release
+        if: needs.decide.outputs.run_runtime != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p runtime-artifact
+          mkdir -p runtime-artifact/python runtime-artifact/native
           curl --fail --location --retry 5 --retry-all-errors \
             --header "Authorization: Bearer $GH_TOKEN" \
             --header 'Accept: application/octet-stream' \
-            --output runtime-artifact/hermesrt.zip \
+            --output runtime-artifact/python/hermesrt.zip \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/${HERMES_RUNTIME_RELEASE_TAG}/hermesrt.zip"
-          test -s runtime-artifact/hermesrt.zip
+          test -s runtime-artifact/python/hermesrt.zip
           curl --fail --location --retry 5 --retry-all-errors \
             --header "Authorization: Bearer $GH_TOKEN" \
             --header 'Accept: application/octet-stream' \
-            --output runtime-artifact/HermesRuntime.framework.zip \
+            --output runtime-artifact/native/HermesRuntime.framework.zip \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/${HERMES_RUNTIME_RELEASE_TAG}/HermesRuntime.framework.zip"
-          test -s runtime-artifact/HermesRuntime.framework.zip
+          test -s runtime-artifact/native/HermesRuntime.framework.zip
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -285,24 +308,25 @@ jobs:
         id: runtime_hash
         run: |
           set -euo pipefail
-          printf 'sha256=%s\n' "$(shasum -a 256 runtime-artifact/hermesrt.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          python_hash="$(shasum -a 256 runtime-artifact/python/hermesrt.zip | awk '{print $1}')"
+          framework_hash="$(shasum -a 256 runtime-artifact/native/HermesRuntime.framework.zip | awk '{print $1}')"
+          printf 'sha256=%s-%s\n' "$python_hash" "$framework_hash" >> "$GITHUB_OUTPUT"
 
-      - name: Cache native runtime and unsigned app
+      - name: Cache unsigned app archive
         id: app_build_cache
         uses: actions/cache@v4
         with:
           path: |
-            ${{ runner.temp }}/hermes-build/native-ios
             ${{ runner.temp }}/HermesLink.xcarchive
             ${{ runner.temp }}/hermeslink-archive.log
           key: ${{ runner.os }}-hermes-app-${{ github.sha }}-${{ steps.runtime_hash.outputs.sha256 }}-${{ hashFiles('Blink.xcodeproj/**', 'Blink/**', 'Settings/**', 'Sessions/**', 'Resources/**', 'Media.xcassets/**', 'Frameworks/**', '*.xcconfig', 'hermes/build/**', 'install_hermes_runtime.sh') }}
 
-      - name: Install runtime from release
+      - name: Install downloaded runtime assets
         run: |
           set -euo pipefail
           mkdir -p hermes/Frameworks
-          unzip -q runtime-artifact/HermesRuntime.framework.zip -d hermes/Frameworks
-          cp runtime-artifact/hermesrt.zip hermes/hermesrt.zip
+          unzip -q runtime-artifact/native/HermesRuntime.framework.zip -d hermes/Frameworks
+          cp runtime-artifact/python/hermesrt.zip hermes/hermesrt.zip
           test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
           bash install_hermes_runtime.sh hermes
 
@@ -364,7 +388,7 @@ jobs:
           set -euo pipefail
           app="$(find "$RUNNER_TEMP/HermesLink.xcarchive/Products/Applications" -maxdepth 1 -type d -name '*.app' -print -quit)"
           test -n "$app"
-          install -m 644 runtime-artifact/hermesrt.zip "$app/hermesrt.zip"
+          install -m 644 runtime-artifact/python/hermesrt.zip "$app/hermesrt.zip"
           test -s "$app/hermesrt.zip"
 
       - name: Package IPA
