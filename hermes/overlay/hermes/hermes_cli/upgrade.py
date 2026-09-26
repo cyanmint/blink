@@ -147,6 +147,7 @@ def _apply_overlay(root: Path) -> None:
         ("patch-ios-stability.py", str(runtime)),
         ("patch-agent-sdk-compat.py", str(runtime / "agent" / "agent_init.py")),
         ("patch-webui-zip.py", str(root / "hermes-webui" / "api" / "config.py")),
+        ("patch-webui-thread-signal.py", str(root / "hermes-webui" / "server.py")),
     ):
         patch = patches / name
         if not patch.is_file():

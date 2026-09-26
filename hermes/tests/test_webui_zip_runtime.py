@@ -389,6 +389,69 @@ def get_static_root() -> Path:
             archive_command = 'python3 - "$STAGE" "$OUTPUT"' if script_name.endswith("linux.sh") else 'python3 - "$STAGE" "$ARCHIVE"'
             self.assertLess(source.index(helper_command), source.index(archive_command), script_name)
 
+    def test_webui_sigpipe_handler_is_safe_on_ios_command_workers(self) -> None:
+        patcher = Path(__file__).parents[1] / "overlay" / "patches" / "patch-webui-thread-signal.py"
+        server = self.root / "hermes-webui" / "server.py"
+        server.parent.mkdir(parents=True)
+        server.write_text(
+            """import signal
+import threading
+
+def _ignore_sigpipe() -> None:
+    \"\"\"Keep broken client writes from terminating the server process.\"\"\"
+    if (sigpipe := getattr(signal, \"SIGPIPE\", None)) is not None:
+        signal.signal(sigpipe, signal.SIG_IGN)
+""",
+            encoding="utf-8",
+            newline="\n",
+        )
+        subprocess.run([sys.executable, str(patcher), str(server)], check=True, capture_output=True, text=True)
+        patched = server.read_text(encoding="utf-8")
+        self.assertIn("HERMESLINK_THREAD_SAFE_SIGPIPE", patched)
+
+        probe = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import runpy, sys, threading, types; ns=runpy.run_path(sys.argv[1]); errors=[]; calls=[]\n"
+                "def signal_install(_sig, _handler):\n"
+                "    if threading.current_thread() is not threading.main_thread():\n"
+                "        raise ValueError('signal only works in main thread of the main interpreter')\n"
+                "    calls.append(_sig)\n"
+                "ns['_ignore_sigpipe'].__globals__['signal']=types.SimpleNamespace(SIGPIPE=1, "
+                "SIG_IGN=object(), signal=signal_install)\n"
+                "def check():\n"
+                "    try: ns['_ignore_sigpipe']()\n"
+                "    except BaseException as exc: errors.append(repr(exc))\n"
+                "worker=threading.Thread(target=check, daemon=True); worker.start(); worker.join(5)\n"
+                "assert not worker.is_alive(); assert not errors, errors; ns['_ignore_sigpipe'](); "
+                "assert calls == [1], calls; print('worker-safe')",
+                str(server),
+            ],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        self.assertIn("worker-safe", probe.stdout)
+
+        subprocess.run([sys.executable, str(patcher), str(server)], check=True, capture_output=True, text=True)
+        self.assertEqual(server.read_text(encoding="utf-8"), patched)
+
+    def test_native_and_linux_runtime_packages_apply_webui_thread_patch(self) -> None:
+        build = Path(__file__).parents[1] / "build"
+        patch_command = '"$HOST_PYTHON" "$ROOT/overlay/patches/patch-webui-thread-signal.py" "$STAGE/hermes-webui/server.py"'
+        for script_name in ("package-native-ios.sh", "package-hermesrt-linux.sh"):
+            source = (build / script_name).read_text(encoding="utf-8")
+            self.assertIn(patch_command, source, script_name)
+            archive_command = 'python3 - "$STAGE" "$OUTPUT"' if script_name.endswith("linux.sh") else 'python3 - "$STAGE" "$ARCHIVE"'
+            self.assertLess(source.index(patch_command), source.index(archive_command), script_name)
+
+        upgrade = (Path(__file__).parents[1] / "overlay" / "hermes" / "hermes_cli" / "upgrade.py").read_text(encoding="utf-8")
+        self.assertIn("patch-webui-thread-signal.py", upgrade)
+        self.assertIn('str(root / "hermes-webui" / "server.py")', upgrade)
+
 
 if __name__ == "__main__":
     unittest.main()

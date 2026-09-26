@@ -34,6 +34,7 @@ for module in bootstrap.py server.py mcp_server.py; do
   [ -f "$WEBUI_ROOT/$module" ] && cp "$WEBUI_ROOT/$module" "$STAGE/hermes-webui/"
 done
 "$HOST_PYTHON" "$ROOT/overlay/patches/patch-webui-zip.py" "$STAGE/hermes-webui/api/config.py"
+"$HOST_PYTHON" "$ROOT/overlay/patches/patch-webui-thread-signal.py" "$STAGE/hermes-webui/server.py"
 cp "$ROOT/overlay/python/sitecustomize.py" "$STAGE/python/sitecustomize.py"
 
 uv pip install --target "$VENDOR_ROOT" --python "$HOST_PYTHON" \

@@ -42,6 +42,19 @@ class EmbeddedRuntimeConcurrencyTests(unittest.TestCase):
         self.assertNotIn('setenv("HERMES_WEBUI_HOST"', source)
         self.assertNotIn('setenv("HERMES_WEBUI_PORT"', source)
         self.assertNotIn("wait_for_command_threads", source)
+        self.assertIn("static int install_command_stdio(", source)
+        self.assertIn('dlsym(RTLD_DEFAULT, "HermesLinkInputFD")', source)
+        self.assertIn("PyFile_FromFd(", source)
+        self.assertIn('PySys_SetObject("stdin",', source)
+        self.assertIn("restore_command_stdio(&command_stdio)", source)
+        self.assertLess(
+            source.index("install_command_stdio(&command_stdio)"),
+            source.index("python_mode ? run_python_command"),
+        )
+        self.assertLess(
+            source.index("restore_command_stdio(&command_stdio)"),
+            source.index("PyGILState_Release(gil_state)", source.index("restore_command_stdio(&command_stdio)")),
+        )
 
         app_delegate = APP_DELEGATE_SOURCE.read_text(encoding="utf-8")
         self.assertIn("numPythonInterpreters = 1;", app_delegate)

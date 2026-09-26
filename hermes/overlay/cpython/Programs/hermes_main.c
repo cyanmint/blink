@@ -161,6 +161,67 @@ static void flush_python_stdio(void) {
     fflush(stderr);
 }
 
+typedef struct {
+    PyObject *saved_stdin;
+    PyObject *saved_stdout;
+    PyObject *saved_stderr;
+    PyObject *command_stdin;
+    PyObject *command_stdout;
+    PyObject *command_stderr;
+} CommandStdio;
+
+static int bind_command_stream(const char *name, int fd, const char *mode,
+                               PyObject **saved, PyObject **command) {
+    *saved = PySys_GetObject(name);
+    Py_XINCREF(*saved);
+    if (*saved == NULL || fd < 0) return 0;
+
+    *command = PyFile_FromFd(fd, name, mode, -1, "utf-8", "strict", NULL, 0);
+    if (*command == NULL) return -1;
+    return PySys_SetObject(name, *command);
+}
+
+static void restore_command_stdio(CommandStdio *stdio) {
+    if (stdio->saved_stdin != NULL && PySys_SetObject("stdin", stdio->saved_stdin) != 0)
+        PyErr_Clear();
+    if (stdio->saved_stdout != NULL && PySys_SetObject("stdout", stdio->saved_stdout) != 0)
+        PyErr_Clear();
+    if (stdio->saved_stderr != NULL && PySys_SetObject("stderr", stdio->saved_stderr) != 0)
+        PyErr_Clear();
+    Py_XDECREF(stdio->command_stdin);
+    Py_XDECREF(stdio->command_stdout);
+    Py_XDECREF(stdio->command_stderr);
+    Py_XDECREF(stdio->saved_stdin);
+    Py_XDECREF(stdio->saved_stdout);
+    Py_XDECREF(stdio->saved_stderr);
+    memset(stdio, 0, sizeof(*stdio));
+}
+
+static int install_command_stdio(CommandStdio *stdio) {
+    typedef int (*input_fd_fn)(void);
+    typedef int (*output_fd_fn)(int);
+    input_fd_fn input_fd = (input_fd_fn)dlsym(RTLD_DEFAULT, "HermesLinkInputFD");
+    output_fd_fn output_fd = (output_fd_fn)dlsym(RTLD_DEFAULT, "HermesLinkOutputFD");
+    memset(stdio, 0, sizeof(*stdio));
+    if (input_fd == NULL || output_fd == NULL) return 0;
+
+    if (bind_command_stream("stdin", input_fd(), "r",
+                            &stdio->saved_stdin, &stdio->command_stdin) != 0 ||
+        bind_command_stream("stdout", output_fd(0), "w",
+                            &stdio->saved_stdout, &stdio->command_stdout) != 0 ||
+        bind_command_stream("stderr", output_fd(1), "w",
+                            &stdio->saved_stderr, &stdio->command_stderr) != 0) {
+        PyObject *type = NULL;
+        PyObject *value = NULL;
+        PyObject *traceback = NULL;
+        PyErr_Fetch(&type, &value, &traceback);
+        restore_command_stdio(stdio);
+        PyErr_Restore(type, value, traceback);
+        return -1;
+    }
+    return 0;
+}
+
 int hermes_register_native_modules(void);
 
 static const char *runtime_suffixes[] = {
@@ -443,6 +504,10 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
     }
     report_runtime_message("hermes: installing command arguments");
     int result = set_command_argv(argc, argv);
+    CommandStdio command_stdio = {0};
+    if (result == 0 && install_command_stdio(&command_stdio) != 0) {
+        result = report_python_error("configure command stdio");
+    }
     if (result == 0) {
         report_runtime_message("hermes: importing sitecustomize");
         PyObject *bootstrap = PyImport_ImportModule("sitecustomize");
@@ -458,6 +523,7 @@ static int hermes_runtime_main_impl(int argc, char **argv, int python_mode) {
         }
     }
     flush_python_stdio();
+    restore_command_stdio(&command_stdio);
     if (PySys_SetObject("argv", saved_argv) != 0) PyErr_Clear();
     Py_DECREF(saved_argv);
     PyGILState_Release(gil_state);

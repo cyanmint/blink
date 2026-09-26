@@ -72,6 +72,7 @@ for module in bootstrap.py server.py mcp_server.py; do
   [ -f "$WEBUI_SOURCE/$module" ] && cp "$WEBUI_SOURCE/$module" "$STAGE/hermes-webui/"
 done
 "$HOST_PYTHON" "$ROOT/overlay/patches/patch-webui-zip.py" "$STAGE/hermes-webui/api/config.py"
+"$HOST_PYTHON" "$ROOT/overlay/patches/patch-webui-thread-signal.py" "$STAGE/hermes-webui/server.py"
 "$HOST_PYTHON" "$ROOT/overlay/patches/ensure-zip-import-packages.py" "$STAGE/hermes"
 cp "$ROOT/overlay/python/sitecustomize.py" "$STAGE/python/sitecustomize.py"
 cp -a "$ROOT/overlay" "$STAGE/overlay"
