@@ -350,6 +350,13 @@ def get_static_root() -> Path:
         self.assertIn(patch_command, source)
         self.assertLess(source.index(patch_command), source.index("python3 - \"$STAGE\" \"$OUTPUT\""))
 
+    def test_runtime_packages_bundle_requests_charset_detector(self) -> None:
+        build = Path(__file__).parents[1] / "build"
+        for script_name in ("package-native-ios.sh", "package-hermesrt-linux.sh"):
+            source = (build / script_name).read_text(encoding="utf-8")
+            self.assertIn("requests==2.33.0", source, script_name)
+            self.assertIn("charset-normalizer==3.4.4", source, script_name)
+
     def test_zip_package_explicitly_marks_browser_namespace_for_zipimport(self) -> None:
         root = self.root / "package-stage" / "hermes"
         plugins = root / "plugins"
