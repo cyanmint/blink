@@ -1,4 +1,6 @@
 import importlib.util
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -13,13 +15,22 @@ SPEC.loader.exec_module(validator)
 
 
 class RuntimeZipValidationTests(unittest.TestCase):
-    def _archive(self, extra_files=()):
+    def _archive(self, extra_files=(), omit=()):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         archive_path = Path(temporary.name) / "hermesrt.zip"
+        entries = {
+            "hermes/hermes_cli/main.py": "# Hermes entry point\n",
+            "python/encodings/__init__.py": "# stdlib\n",
+            "python/site-packages/openai/__init__.py": "from .lib import azure\n",
+            "python/site-packages/openai/lib/__init__.py": "# OpenAI SDK lib package\n",
+            "python/site-packages/openai/lib/azure.py": "MODULE = True\n",
+        }
+        for name in omit:
+            entries.pop(name, None)
         with zipfile.ZipFile(archive_path, "w") as archive:
-            archive.writestr("hermes/hermes_cli/main.py", "# Hermes entry point\n")
-            archive.writestr("python/encodings/__init__.py", "# stdlib\n")
+            for name, content in entries.items():
+                archive.writestr(name, content)
             for name, content in extra_files:
                 archive.writestr(name, content)
         return archive_path
@@ -28,6 +39,34 @@ class RuntimeZipValidationTests(unittest.TestCase):
         archive_path = self._archive()
 
         validator.validate_archive(archive_path)
+
+    def test_rejects_archive_without_zip_importable_openai_lib_package(self):
+        archive_path = self._archive(omit=["python/site-packages/openai/lib/__init__.py"])
+
+        with self.assertRaisesRegex(ValueError, "openai/lib/__init__\\.py"):
+            validator.validate_archive(archive_path)
+
+    def test_rejects_archive_without_openai_lib_module(self):
+        archive_path = self._archive(omit=["python/site-packages/openai/lib/azure.py"])
+
+        with self.assertRaisesRegex(ValueError, "openai/lib/azure\\.py"):
+            validator.validate_archive(archive_path)
+
+    def test_imports_openai_lib_submodule_from_zip(self):
+        archive_path = self._archive()
+        code = (
+            "import sys; "
+            "sys.path.insert(0, sys.argv[1] + '/python/site-packages'); "
+            "import openai.lib.azure; "
+            "assert openai.lib.azure.MODULE"
+        )
+
+        subprocess.run(
+            [sys.executable, "-S", "-c", code, str(archive_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
     def test_rejects_native_extension_files(self):
         archive_path = self._archive([("python/site-packages/example.so", b"not actually ELF")])

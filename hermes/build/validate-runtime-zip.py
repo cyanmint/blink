@@ -12,6 +12,9 @@ from pathlib import Path
 REQUIRED_ENTRIES = {
     "hermes/hermes_cli/main.py",
     "python/encodings/__init__.py",
+    "python/site-packages/openai/__init__.py",
+    "python/site-packages/openai/lib/__init__.py",
+    "python/site-packages/openai/lib/azure.py",
 }
 NATIVE_SUFFIXES = {
     ".a",

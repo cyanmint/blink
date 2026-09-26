@@ -35,8 +35,10 @@ if [ "${HERMES_REFRESH_VENDOR:-1}" = "1" ]; then
   command -v uv >/dev/null 2>&1 || { echo "uv is required to vendor pure-Python dependencies" >&2; exit 2; }
   rm -rf "$VENDOR_ROOT"
   mkdir -p "$VENDOR_ROOT"
+  # Keep the old SDK paired with its compatible HTTPX release. Its openai.lib
+  # directory also needs an __init__.py for ZIP-based imports below.
   uv pip install --only-binary :all: --target "$VENDOR_ROOT" --python "$HOST_PYTHON" \
-    openai==1.3.8 pydantic==1.10.15 'httpx[socks]==0.28.1'
+    openai==1.3.8 pydantic==1.10.15 'httpx[socks]==0.27.2'
   uv pip install --only-binary :all: --target "$VENDOR_ROOT" --python "$HOST_PYTHON" --no-deps \
     certifi==2026.5.20 python-dotenv==1.2.2 fire==0.7.1 rich==14.3.3 \
     tenacity==9.1.4 pyyaml==6.0.3 ruamel.yaml==0.18.17 requests==2.33.0 \
@@ -65,6 +67,13 @@ cp "$ROOT/overlay/hermes/agent/legacy_responses.py" "$STAGE/hermes/agent/legacy_
 if [ -d "$VENDOR_ROOT" ]; then
   cp -a "$VENDOR_ROOT/." "$STAGE/python/site-packages/"
   find "$STAGE/python/site-packages" -type f -name '*.so' -delete
+fi
+OPENAI_PACKAGE="$STAGE/python/site-packages/openai"
+[ -f "$OPENAI_PACKAGE/__init__.py" ] || { echo "missing vendored OpenAI SDK" >&2; exit 2; }
+[ -f "$OPENAI_PACKAGE/lib/azure.py" ] || { echo "missing OpenAI SDK lib package" >&2; exit 2; }
+if [ ! -f "$OPENAI_PACKAGE/lib/__init__.py" ]; then
+  # zipimport does not expose implicit namespace packages such as openai.lib.
+  : > "$OPENAI_PACKAGE/lib/__init__.py"
 fi
 cp -a "$WEBUI_SOURCE/api" "$STAGE/hermes-webui/"
 cp -a "$WEBUI_SOURCE/static" "$STAGE/hermes-webui/" 2>/dev/null || true
