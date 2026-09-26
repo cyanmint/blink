@@ -111,8 +111,43 @@ jobs:
           printf 'run_app=%s\n' "$run_app" >> "$GITHUB_OUTPUT"
           printf 'run_runtime=%s run_app=%s\n' "$run_runtime" "$run_app"
 
-  build-runtime:
-    name: Build and publish hermesrt.zip
+  build-runtime-zip:
+    name: Build pure-Python hermesrt.zip (Linux)
+    needs: decide
+    if: needs.decide.outputs.run_runtime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out HermesLink
+        uses: actions/checkout@v4
+
+      - name: Set up host Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build and validate pure-Python runtime archive
+        env:
+          BUILD_ROOT: ${{ runner.temp }}/hermes-build/python-runtime
+          CPYTHON_ROOT: ${{ runner.temp }}/hermes-build/cpython
+          CPYTHON_REF: v3.13.9
+        run: |
+          set -euo pipefail
+          chmod +x hermes/build/*.sh
+          bash hermes/build/build-hermesrt-zip.sh
+
+      - name: Upload pure-Python runtime archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermesrt-zip
+          path: hermes/hermesrt.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  build-native-runtime:
+    name: Build native iOS runtime (macOS)
     needs: decide
     if: needs.decide.outputs.run_runtime == 'true'
     runs-on: macos-latest
@@ -133,39 +168,67 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-hermes-ios-
 
-      - name: Build Hermes runtime
+      - name: Build native iOS runtime only
         env:
           BUILD_ROOT: ${{ runner.temp }}/hermes-build/native-ios
           IPHONEOS_DEPLOYMENT_TARGET: '16.1'
+          HERMES_BUILD_RUNTIME_ZIP: '0'
           JOBS: 4
         run: |
           set -euo pipefail
           chmod +x hermes/build/*.sh
           bash hermes/build/build-native-ios.sh
-
-      - name: Validate Hermes runtime
-        run: |
-          set -euo pipefail
-          test -s hermes/hermesrt.zip
           test -x hermes/Frameworks/HermesRuntime.framework/HermesRuntime
-          unzip -t hermes/hermesrt.zip
-          python3 - hermes/hermesrt.zip <<'PY'
-          import sys, zipfile
-          with zipfile.ZipFile(sys.argv[1]) as archive:
-              names = set(archive.namelist())
-              assert 'hermes/hermes_cli/main.py' in names
-              assert 'python/encodings/__init__.py' in names
-              assert not any(name.endswith(('.so', '.dylib', '.pyd', '.wasm')) for name in names)
-          PY
 
-      - name: Publish hermesrt.zip to fixed release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Package native framework
         run: |
           set -euo pipefail
           ditto -c -k --sequesterRsrc --keepParent \
             hermes/Frameworks/HermesRuntime.framework \
             hermes/HermesRuntime.framework.zip
+
+      - name: Upload native framework
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-native-framework
+          path: hermes/HermesRuntime.framework.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-runtime:
+    name: Publish runtime artifacts
+    needs: [decide, build-runtime-zip, build-native-runtime]
+    if: needs.decide.outputs.run_runtime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out HermesLink
+        uses: actions/checkout@v4
+
+      - name: Download pure-Python archive
+        uses: actions/download-artifact@v4
+        with:
+          name: hermesrt-zip
+          path: runtime-artifact
+
+      - name: Download native framework archive
+        uses: actions/download-artifact@v4
+        with:
+          name: hermes-native-framework
+          path: runtime-artifact
+
+      - name: Validate release payloads
+        run: |
+          set -euo pipefail
+          test -s runtime-artifact/hermesrt.zip
+          test -s runtime-artifact/HermesRuntime.framework.zip
+          python3 hermes/build/validate-runtime-zip.py runtime-artifact/hermesrt.zip
+          unzip -t runtime-artifact/HermesRuntime.framework.zip
+
+      - name: Publish assets to fixed release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
           # Recreate the mutable release instead of using --clobber. GitHub
           # can retain a stale asset id after an interrupted upload; gh then
           # receives 404 while trying to replace an asset that still appears
@@ -175,17 +238,20 @@ jobs:
           fi
           gh release create "$HERMES_RUNTIME_RELEASE_TAG" \
             --title 'Hermes runtime (latest)' \
-            --notes 'Mutable runtime asset used by HermesLink app builds.'
+            --notes 'Pure-Python runtime archive and native iOS framework used by HermesLink app builds.'
           gh release upload "$HERMES_RUNTIME_RELEASE_TAG" \
-            hermes/hermesrt.zip hermes/HermesRuntime.framework.zip
+            runtime-artifact/hermesrt.zip runtime-artifact/HermesRuntime.framework.zip
 
   build-app:
     name: Build HermesLink app
-    needs: [decide, build-runtime]
+    needs: [decide, publish-runtime]
     if: >-
       always() &&
       needs.decide.outputs.run_app == 'true' &&
-      (needs.build-runtime.result == 'success' || needs.build-runtime.result == 'skipped')
+      (
+        needs.publish-runtime.result == 'success' ||
+        (needs.decide.outputs.run_runtime != 'true' && needs.publish-runtime.result == 'skipped')
+      )
     runs-on: macos-latest
     steps:
       - name: Check out HermesLink

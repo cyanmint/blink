@@ -263,5 +263,8 @@ rm -f "$ROOT/hermes"
 mkdir -p "$ROOT/Frameworks"
 rm -rf "$ROOT/Frameworks/HermesRuntime.framework"
 cp -a "$BUILD_ROOT/artifact/HermesRuntime.framework" "$ROOT/Frameworks/HermesRuntime.framework"
-cp "$BUILD_ROOT/hermesrt.zip" "$ROOT/hermesrt.zip"
-file "$ROOT/Frameworks/HermesRuntime.framework/HermesRuntime" "$ROOT/hermesrt.zip"
+file "$ROOT/Frameworks/HermesRuntime.framework/HermesRuntime"
+if [ "${HERMES_BUILD_RUNTIME_ZIP:-1}" = "1" ]; then
+  cp "$BUILD_ROOT/hermesrt.zip" "$ROOT/hermesrt.zip"
+  file "$ROOT/hermesrt.zip"
+fi
